@@ -1,0 +1,265 @@
+import { useState } from 'react';
+import { useSettingsStore } from '../../core/store/useSettingsStore';
+import { useBoardStore } from '../../core/store/useBoardStore';
+import {
+  X, Palette, Grid, Type, Keyboard, Database
+} from 'lucide-react';
+
+type Tab = 'appearance' | 'canvas' | 'labels' | 'shortcuts' | 'data';
+
+export const SettingsDashboard = () => {
+  const [activeTab, setActiveTab] = useState<Tab>('appearance');
+  const [newFont, setNewFont] = useState('');
+  const [recordingKey, setRecordingKey] = useState<keyof typeof keybindings | null>(null);
+
+  const {
+    isSettingsOpen, toggleSettings, theme, setTheme,
+    viewMode, setViewMode, gridStyle, setGridStyle,
+    gridColor, setGridColor, backgroundColor, setBackgroundColor,
+    labelFontFamily, labelFontSize, updateLabelSettings, customFonts, addCustomFont, removeCustomFont,
+    keybindings, updateKeybinding, snapToGrid, toggleSnapToGrid, 
+  } = useSettingsStore();
+
+  const listenForKey = (action: keyof typeof keybindings) => {
+    setRecordingKey(action);
+    const listener = (e: KeyboardEvent) => {
+      e.preventDefault();
+      updateKeybinding(action, e.key);
+      setRecordingKey(null);
+      window.removeEventListener('keydown', listener);
+    };
+    window.addEventListener('keydown', listener);
+  };
+
+  const { clearBoard, saveProject, showToast } = useBoardStore();
+
+  const isDark = theme === 'dark';
+
+  if (!isSettingsOpen) return null;
+
+  const handleClearAutosave = () => {
+    localStorage.removeItem('visual_board_autosave');
+    showToast("Autosave cache cleared!");
+  };
+
+  const tabs = [
+    { id: 'appearance', label: 'Appearance', icon: Palette },
+    { id: 'canvas', label: 'Canvas & Grid', icon: Grid },
+    { id: 'labels', label: 'Diagram Labels', icon: Type },
+    { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
+    { id: 'data', label: 'Data & Storage', icon: Database },
+  ];
+
+  // Common Styles
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+      backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+      backdropFilter: 'blur(8px)', zIndex: 9999,
+      display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+      <div style={{
+        width: '900px', height: '600px', display: 'flex',
+        backgroundColor: isDark ? '#1e293b' : '#ffffff',
+        borderRadius: '16px', overflow: 'hidden',
+        boxShadow: isDark ? '0 25px 50px -12px rgba(0, 0, 0, 0.7)' : '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+        border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',}}>
+
+        {/* SIDEBAR */}
+        <div style={{ width: '240px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderRight: isDark ? '1px solid #334155' : '1px solid #e2e8f0', padding: '24px 16px' }}>
+          <h2 style={{ margin: '0 0 24px 8px', fontSize: '1.25rem', color: isDark ? '#f8fafc' : '#0f172a' }}>Settings</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as Tab)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px', width: '100%', padding: '10px 12px',
+                  backgroundColor: activeTab === tab.id ? (isDark ? '#3b82f6' : '#eff6ff') : 'transparent',
+                  color: activeTab === tab.id ? (isDark ? '#ffffff' : '#3b82f6') : (isDark ? '#cbd5e1' : '#475569'),
+                  border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontSize: '0.9rem', fontWeight: 500,
+                  transition: 'all 0.2s'
+                }}
+              >
+                <tab.icon size={18} /> {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+            {/* MAIN CONTENT AREA */}
+        <div style={{ flex: 1, backgroundColor: isDark ? '#020617' : '#f3f4f6', overflowY: 'auto', position: 'relative', color: isDark ? '#f8fafc' : '#0f172a', display: 'flex', justifyContent: 'center' }}>
+          
+          <button onClick={toggleSettings} style={{ position: 'absolute', top: '20px', right: '20px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isDark ? '#334155' : '#e2e8f0', borderRadius: '50%', border: 'none', color: isDark ? '#94a3b8' : '#64748b', cursor: 'pointer', zIndex: 10, transition: 'all 0.2s' }}>
+            <X size={18} />
+          </button>
+
+          {/* Wrapper to restrict width and center content */}
+          <div style={{ width: '100%', maxWidth: '540px', padding: '40px 0' }}>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 600, marginBottom: '24px', marginLeft: '8px' }}>
+              {tabs.find(t => t.id === activeTab)?.label}
+            </h1>
+
+            {/* SHARED APPLE STYLES */}
+            {(() => {
+              const card = { backgroundColor: isDark ? '#0f172a' : '#ffffff', borderRadius: '12px', border: isDark ? '1px solid #1e293b' : '1px solid #e5e7eb', overflow: 'hidden', marginBottom: '24px' };
+              const row = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #e5e7eb' };
+              const lastRow = { ...row, borderBottom: 'none' };
+              const controlBtn = { padding: '6px 12px', borderRadius: '6px', backgroundColor: isDark ? '#334155' : '#f1f5f9', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 500 };
+
+              return (
+              <>
+                {/* TAB 1: APPEARANCE */}
+                {activeTab === 'appearance' && (
+                  <>
+                    <p style={{ fontSize: '0.85rem', color: isDark ? '#94a3b8' : '#64748b', marginBottom: '8px', marginLeft: '12px', textTransform: 'uppercase' }}>Theme & Layout</p>
+                    <div style={card}>
+                      <div style={row}>
+                        <span style={{ fontWeight: 500 }}>Application Theme</span>
+                        <div style={{ display: 'flex', gap: '4px', backgroundColor: isDark ? '#1e293b' : '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
+                          <button onClick={() => setTheme('light')} style={{ ...controlBtn, backgroundColor: theme === 'light' ? (isDark ? '#3b82f6' : '#ffffff') : 'transparent', boxShadow: theme === 'light' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none', color: theme === 'light' && isDark ? '#fff' : 'inherit' }}>Light</button>
+                          <button onClick={() => setTheme('dark')} style={{ ...controlBtn, backgroundColor: theme === 'dark' ? (isDark ? '#0f172a' : '#ffffff') : 'transparent', boxShadow: theme === 'dark' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none', color: theme === 'dark' && !isDark ? '#000' : 'inherit' }}>Dark</button>
+                        </div>
+                      </div>
+                      <div style={lastRow}>
+                        <span style={{ fontWeight: 500 }}>Default Layout</span>
+                        <select value={viewMode} onChange={(e) => setViewMode(e.target.value as any)} style={{ ...controlBtn, outline: 'none' }}>
+                          <option value="canvas">Canvas Only</option>
+                          <option value="split">Split View</option>
+                          <option value="notebook">Notes Only</option>
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* TAB 2: CANVAS */}
+                {activeTab === 'canvas' && (
+                  <>
+                    <div style={card}>
+                      <div style={row}>
+                        <span style={{ fontWeight: 500 }}>Snap to Grid</span>
+                        <button onClick={toggleSnapToGrid} style={{ ...controlBtn, backgroundColor: snapToGrid ? '#3b82f6' : (isDark ? '#334155' : '#e5e7eb'), color: snapToGrid ? '#fff' : 'inherit' }}>
+                          {snapToGrid ? 'ON' : 'OFF'}
+                        </button>
+                      </div>
+                      <div style={row}>
+                        <span style={{ fontWeight: 500 }}>Background Color</span>
+                        <input type="color" value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} style={{ width: '32px', height: '32px', border: 'none', borderRadius: '6px', padding: 0, cursor: 'pointer' }} />
+                      </div>
+                      <div style={row}>
+                        <span style={{ fontWeight: 500 }}>Grid Style</span>
+                        <select value={gridStyle} onChange={(e) => setGridStyle(e.target.value as any)} style={{ ...controlBtn, outline: 'none' }}>
+                          <option value="none">Blank</option>
+                          <option value="dot">Dotted</option>
+                          <option value="grid">Lines</option>
+                        </select>
+                      </div>
+                      {gridStyle !== 'none' && (
+                        <div style={lastRow}>
+                          <span style={{ fontWeight: 500 }}>Grid Color</span>
+                          <input type="color" value={gridColor} onChange={(e) => setGridColor(e.target.value)} style={{ width: '32px', height: '32px', border: 'none', borderRadius: '6px', padding: 0, cursor: 'pointer' }} />
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* TAB 3: LABELS & FONTS */}
+                {activeTab === 'labels' && (
+                  <>
+                    <p style={{ fontSize: '0.85rem', color: isDark ? '#94a3b8' : '#64748b', marginBottom: '8px', marginLeft: '12px', textTransform: 'uppercase' }}>Installed Fonts</p>
+                    <div style={card}>
+                      <div style={{ ...row, padding: '12px 16px', backgroundColor: isDark ? '#1e293b' : '#f9fafb' }}>
+                        <input 
+                          type="text" placeholder="Google Font Name (e.g. Oswald)" 
+                          value={newFont} onChange={(e) => setNewFont(e.target.value)} 
+                          style={{ background: 'transparent', border: 'none', outline: 'none', color: 'inherit', flex: 1, padding: '4px', fontSize: '0.95rem' }} 
+                        />
+                        <button onClick={() => { if(newFont) { addCustomFont(newFont); setNewFont(''); } }} style={{ ...controlBtn, backgroundColor: '#3b82f6', color: '#fff', borderRadius: '16px', padding: '6px 16px' }}>Install</button>
+                      </div>
+                      {customFonts.map((font, idx) => (
+                        <div key={font} style={idx === customFonts.length - 1 ? lastRow : row}>
+                          <span style={{ fontFamily: font }}>{font}</span>
+                          {!['Arial', 'Courier New', 'Times New Roman'].includes(font) && (
+                            <button onClick={() => removeCustomFont(font)} style={{ ...controlBtn, color: '#ef4444', backgroundColor: 'transparent' }}>Remove</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <p style={{ fontSize: '0.85rem', color: isDark ? '#94a3b8' : '#64748b', marginBottom: '8px', marginLeft: '12px', textTransform: 'uppercase', marginTop: '24px' }}>Default Label Styling</p>
+                    <div style={card}>
+                      <div style={row}>
+                        <span style={{ fontWeight: 500 }}>Font Family</span>
+                        <select value={labelFontFamily} onChange={(e) => updateLabelSettings({ labelFontFamily: e.target.value })} style={{ ...controlBtn, outline: 'none' }}>
+                          {customFonts.map(font => <option key={font} value={font}>{font}</option>)}
+                        </select>
+                      </div>
+                      <div style={lastRow}>
+                        <span style={{ fontWeight: 500 }}>Font Size ({labelFontSize}px)</span>
+                        <input type="range" min="10" max="48" value={labelFontSize} onChange={(e) => updateLabelSettings({ labelFontSize: Number(e.target.value) })} />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* TAB 4: SHORTCUTS */}
+                {activeTab === 'shortcuts' && (
+                  <>
+                    <p style={{ fontSize: '0.85rem', color: isDark ? '#94a3b8' : '#64748b', marginBottom: '8px', marginLeft: '12px', textTransform: 'uppercase' }}>Keybindings</p>
+                    <div style={card}>
+                      {Object.entries(keybindings).map(([action, currentKey], idx) => (
+                        <div key={action} style={idx === Object.entries(keybindings).length - 1 ? lastRow : row}>
+                          <span style={{ textTransform: 'capitalize', fontWeight: 500 }}>{action} Tool</span>
+                          <button 
+                            onClick={() => listenForKey(action as keyof typeof keybindings)}
+                            style={{ ...controlBtn, backgroundColor: recordingKey === action ? '#3b82f6' : (isDark ? '#334155' : '#f1f5f9'), color: recordingKey === action ? '#fff' : 'inherit', minWidth: '40px' }}
+                          >
+                            {recordingKey === action ? '...' : currentKey.toUpperCase()}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+                
+                {activeTab === 'data' && (
+                  <>
+                    <p style={{ fontSize: '0.85rem', color: isDark ? '#94a3b8' : '#64748b', marginBottom: '8px', marginLeft: '12px', textTransform: 'uppercase' }}>Project Information</p>
+                    <div style={card}>
+                      <div style={row}>
+                        <span style={{ fontWeight: 500 }}>Project Name</span>
+                        <input type="text" placeholder="My Whiteboard" style={{ padding: '6px 12px', borderRadius: '6px', border: isDark ? '1px solid #334155' : '1px solid #e5e7eb', background: isDark ? '#1e293b' : '#f9fafb', color: 'inherit', outline: 'none' }} />
+                      </div>
+                      <div style={lastRow}>
+                        <span style={{ fontWeight: 500 }}>Author</span>
+                        <input type="text" placeholder="Anonymous" style={{ padding: '6px 12px', borderRadius: '6px', border: isDark ? '1px solid #334155' : '1px solid #e5e7eb', background: isDark ? '#1e293b' : '#f9fafb', color: 'inherit', outline: 'none' }} />
+                      </div>
+                    </div>
+
+                    <p style={{ fontSize: '0.85rem', color: isDark ? '#94a3b8' : '#64748b', marginBottom: '8px', marginLeft: '12px', textTransform: 'uppercase', marginTop: '24px' }}>Storage & Backup</p>
+                    <div style={card}>
+                      <div style={row}>
+                      <span style={{ fontWeight: 500 }}>Download Project Backup</span>
+                      <button onClick={saveProject} style={{ ...controlBtn, backgroundColor: '#3b82f6', color: '#fff' }}>Export .board</button>
+                    </div>
+                    <div style={row}>
+                      <span style={{ fontWeight: 500 }}>Clear Cache</span>
+                      <button onClick={handleClearAutosave} style={{ ...controlBtn, color: '#ef4444' }}>Clear Autosave</button>
+                    </div>
+                    <div style={lastRow}>
+                      <span style={{ fontWeight: 500 }}>Wipe Canvas</span>
+                      <button onClick={() => { if(window.confirm('Delete everything?')) clearBoard(); }} style={{ ...controlBtn, backgroundColor: '#ef4444', color: '#fff' }}>Reset Board</button>
+                    </div>
+                  </div>
+                  </>
+                )}
+              </>
+              );
+            })()}
+        </div>
+      </div>
+      </div>
+    </div>
+  );
+};

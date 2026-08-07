@@ -1,0 +1,422 @@
+import { create } from 'zustand';
+import { encryptData, decryptData } from '../../utils/encryption';
+import type { BoardObject, LineData, RectangleData, CircleData, ImageData } from '../../types/objects';
+
+interface Camera { x: number; y: number; scale: number; }
+export type Tool = 'select' | 'pan' | 'pen' | 'eraser' | 'rectangle' | 'circle' | 'text';
+
+// 1. Normalized State Interface
+interface BoardState {
+  camera: Camera;
+  tool: Tool;
+  isToolLocked: boolean;
+  // THE NEW ENTERPRISE DATA STRUCTURE
+  objectsById: Record<string, BoardObject>;
+  objectIds: string[];
+  
+  selectedIds: string[];
+  clipboard: BoardObject[];
+  
+  // History now stores shallow maps (Extremely memory efficient!)
+  past: { byId: Record<string, BoardObject>, ids: string[] }[];
+  future: { byId: Record<string, BoardObject>, ids: string[] }[];
+
+  toast: string | null;
+  contextMenu: { x: number, y: number, id: string } | null;
+  notebookContent: string;
+
+  // Actions
+  setCamera: (camera: Camera) => void;
+  setTool: (tool: Tool, locked?: boolean) => void;
+  setSelectedIds: (ids: string[]) => void;
+  showToast: (msg: string) => void;
+  setContextMenu: (menu: { x: number, y: number, id: string } | null) => void;
+  setNotebookContent: (content: string) => void;
+  
+  addObject: (obj: BoardObject) => void;
+  updateObject: (id: string, updates: Partial<BoardObject>) => void;
+  removeObject: (id: string) => void;
+  deleteSelected: () => void;
+  setObjectLabel: (idOrParentId: string, label: string) => void;
+  
+  copySelected: () => void;
+  paste: () => void;
+  duplicateSelected: () => void;
+  groupSelected: () => void;
+  ungroupSelected: () => void;
+  
+  moveSelectedObjects: (dx: number, dy: number) => void;
+  addPointToLastLine: (point: [number, number]) => void;
+  updateCurrentShape: (pos: { x: number; y: number }) => void;
+  addImage: (base64: string, x: number, y: number) => void;
+  
+  bringToFront: () => void;
+  sendToBack: () => void;
+  bringForward: () => void;
+  sendBackward: () => void;
+
+  saveHistory: () => void;
+  undo: () => void;
+  redo: () => void;
+  
+  focusCameraOn: (idOrParentId: string) => void;
+  saveProject: () => void;
+  loadProject: (jsonString: string) => void;
+  clearBoard: () => void;
+}
+
+export const useBoardStore = create<BoardState>((set, get) => ({
+  camera: { x: 0, y: 0, scale: 1 },
+  tool: 'select',
+  isToolLocked: false,
+  objectsById: {},
+  objectIds: [],
+  selectedIds: [],
+  clipboard: [],
+  
+  past: [],
+  future: [],
+  
+  toast: null,
+  contextMenu: null,
+  notebookContent: '<h1>Project Notes</h1><p>Start documenting your whiteboard here...</p>',
+
+  showToast: (msg) => {
+    set({ toast: msg });
+    setTimeout(() => set({ toast: null }), 2000);
+  },
+  
+  setCamera: (camera) => set({ camera }),
+  setTool: (tool, locked = false) => set({ tool, isToolLocked: locked, selectedIds: [] }),
+  setSelectedIds: (ids) => set({ selectedIds: ids }),
+  setContextMenu: (menu) => set({ contextMenu: menu }),
+  setNotebookContent: (content) => set({ notebookContent: content }),
+
+  // --- HISTORY ENGINE (Structural Sharing) ---
+  saveHistory: () => set((state) => {
+    const newPast = [...state.past, { byId: state.objectsById, ids: state.objectIds }].slice(-50);
+    return { past: newPast, future: [] }; 
+  }),
+
+  undo: () => {
+    const state = get();
+    if (state.past.length === 0) return;
+    const previous = state.past[state.past.length - 1];
+    set({
+      past: state.past.slice(0, -1),
+      future: [{ byId: state.objectsById, ids: state.objectIds }, ...state.future],
+      objectsById: previous.byId,
+      objectIds: previous.ids,
+      selectedIds: []
+    });
+  },
+
+  redo: () => {
+    const state = get();
+    if (state.future.length === 0) return;
+    const next = state.future[0];
+    set({
+      past: [...state.past, { byId: state.objectsById, ids: state.objectIds }],
+      future: state.future.slice(1),
+      objectsById: next.byId,
+      objectIds: next.ids,
+      selectedIds: []
+    });
+  },
+
+  // --- CORE ENGINE (O(1) Updates) ---
+  addObject: (obj) => set((state) => ({
+    objectsById: { ...state.objectsById, [obj.id]: obj },
+    objectIds: [...state.objectIds, obj.id]
+  })),
+
+  updateObject: (id, updates) => set((state) => {
+    if (!state.objectsById[id]) return state;
+    return {
+      objectsById: {
+        ...state.objectsById,
+        [id]: { ...state.objectsById[id], ...updates, updatedAt: Date.now() } as BoardObject
+      }
+    };
+  }),
+
+  removeObject: (id) => set((state) => {
+    const newById = { ...state.objectsById };
+    delete newById[id];
+    return {
+      objectsById: newById,
+      objectIds: state.objectIds.filter(i => i !== id),
+      selectedIds: state.selectedIds.filter(sId => sId !== id)
+    };
+  }),
+
+  deleteSelected: () => {
+    get().saveHistory();
+    set((state) => {
+      const newById = { ...state.objectsById };
+      state.selectedIds.forEach(id => delete newById[id]);
+      return {
+        objectsById: newById,
+        objectIds: state.objectIds.filter(id => !state.selectedIds.includes(id)),
+        selectedIds: []
+      };
+    });
+  },
+
+  setObjectLabel: (idOrParentId, label) => {
+    get().saveHistory();
+    set((state) => {
+      const newById = { ...state.objectsById };
+      state.objectIds.forEach(id => {
+        const obj = newById[id];
+        if (obj.id === idOrParentId || obj.parentId === idOrParentId) {
+          newById[id] = { ...obj, label, updatedAt: Date.now() };
+        }
+      });
+      return { objectsById: newById };
+    });
+  },
+
+  // --- TRANSFORMS & DRAWING ---
+  moveSelectedObjects: (dx, dy) => set((state) => {
+    const newById = { ...state.objectsById };
+    state.selectedIds.forEach(id => {
+      if (newById[id] && !newById[id].locked) newById[id] = { ...newById[id], x: newById[id].x + dx, y: newById[id].y + dy };
+    });
+    return { objectsById: newById };
+  }),
+
+  addPointToLastLine: (point) => set((state) => {
+    const lastId = state.objectIds[state.objectIds.length - 1];
+    const lastObj = state.objectsById[lastId];
+    if (lastObj && lastObj.type === 'line') {
+      const line = lastObj as LineData;
+      return {
+        objectsById: {
+          ...state.objectsById,
+          [lastId]: { ...line, points: [...line.points, point[0] - line.x, point[1] - line.y] }
+        }
+      };
+    }
+    return state;
+  }),
+
+  updateCurrentShape: (pos) => set((state) => {
+    const lastId = state.objectIds[state.objectIds.length - 1];
+    const lastObj = state.objectsById[lastId];
+    if (!lastObj) return state;
+
+    if (lastObj.type === 'rectangle') {
+      const rect = lastObj as RectangleData;
+      return { objectsById: { ...state.objectsById, [lastId]: { ...rect, width: pos.x - rect.x, height: pos.y - rect.y } } };
+    } else if (lastObj.type === 'circle') {
+      const circle = lastObj as CircleData;
+      return { objectsById: { ...state.objectsById, [lastId]: { ...circle, radius: Math.hypot(pos.x - circle.x, pos.y - circle.y) } } };
+    }
+    return state;
+  }),
+
+  // --- EDITING TOOLS ---
+  copySelected: () => {
+    const state = get();
+    const selected = state.selectedIds.map(id => state.objectsById[id]).filter(Boolean);
+    if (selected.length > 0) set({ clipboard: selected });
+  },
+
+  paste: () => {
+    const state = get();
+    if (state.clipboard.length === 0) return;
+    get().saveHistory();
+    
+    const newById = { ...state.objectsById };
+    const newIds = [...state.objectIds];
+    const newSelectedIds: string[] = [];
+
+    state.clipboard.forEach(obj => {
+      const newId = `obj-${Date.now()}-${Math.random()}`;
+      newById[newId] = { ...obj, id: newId, x: obj.x + 20, y: obj.y + 20, parentId: undefined };
+      newIds.push(newId);
+      newSelectedIds.push(newId);
+    });
+
+    set({ objectsById: newById, objectIds: newIds, selectedIds: newSelectedIds });
+  },
+
+  duplicateSelected: () => {
+    get().copySelected();
+    get().paste();
+  },
+
+  groupSelected: () => {
+    const state = get();
+    if (state.selectedIds.length < 2) return;
+    get().saveHistory();
+    
+    const newParentId = `group-${Date.now()}`;
+    const newById = { ...state.objectsById };
+    state.selectedIds.forEach(id => {
+      if (newById[id]) newById[id] = { ...newById[id], parentId: newParentId };
+    });
+    set({ objectsById: newById });
+  },
+
+  ungroupSelected: () => {
+    const state = get();
+    get().saveHistory();
+    
+    const newById = { ...state.objectsById };
+    state.selectedIds.forEach(id => {
+      if (newById[id]) newById[id] = { ...newById[id], parentId: undefined };
+    });
+    set({ objectsById: newById });
+  },
+
+  // --- Z-INDEX LAYERING ---
+bringToFront: () => { 
+    get().saveHistory(); 
+    set((state) => {
+      const maxZ = Math.max(...state.objectIds.map(id => state.objectsById[id]?.zIndex || 0), 0);
+      const newById = { ...state.objectsById };
+      state.selectedIds.forEach(id => {
+        if (newById[id]) newById[id] = { ...newById[id], zIndex: maxZ + 1 };
+      });
+      return { objectsById: newById };
+    });
+  },
+  
+  sendToBack: () => { 
+    get().saveHistory(); 
+    set((state) => {
+      const minZ = Math.min(...state.objectIds.map(id => state.objectsById[id]?.zIndex || 0), 0);
+      const newById = { ...state.objectsById };
+      state.selectedIds.forEach(id => {
+        if (newById[id]) newById[id] = { ...newById[id], zIndex: minZ - 1 };
+      });
+      return { objectsById: newById };
+    });
+  },
+  
+  bringForward: () => { 
+    get().saveHistory(); 
+    set((state) => {
+      const newById = { ...state.objectsById };
+      state.selectedIds.forEach(id => {
+        if (newById[id]) newById[id] = { ...newById[id], zIndex: newById[id].zIndex + 1 };
+      });
+      return { objectsById: newById };
+    });
+  },
+  
+  sendBackward: () => { 
+    get().saveHistory(); 
+    set((state) => {
+      const newById = { ...state.objectsById };
+      state.selectedIds.forEach(id => {
+        if (newById[id]) newById[id] = { ...newById[id], zIndex: newById[id].zIndex - 1 };
+      });
+      return { objectsById: newById };
+    });
+  },
+
+  // --- CAMERA & IO ---
+  focusCameraOn: (idOrParentId) => {
+    const state = get();
+    const targets = state.objectIds.map(id => state.objectsById[id]).filter(o => o.id === idOrParentId || o.parentId === idOrParentId);
+    if (targets.length === 0) return;
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    targets.forEach((o) => {
+      let oMaxX = o.x, oMaxY = o.y;
+      if (o.type === 'rectangle' || o.type === 'image') { oMaxX = o.x + ((o as any).width * o.scaleX); oMaxY = o.y + ((o as any).height * o.scaleY); }
+      else if (o.type === 'circle') { const r = (o as any).radius * o.scaleX; oMaxX = o.x + r; oMaxY = o.y + r; }
+      minX = Math.min(minX, o.x); maxX = Math.max(maxX, oMaxX);
+      minY = Math.min(minY, o.y); maxY = Math.max(maxY, oMaxY);
+    });
+
+    const scale = state.camera.scale;
+    set({
+      camera: { x: (window.innerWidth / 2) - (((minX + maxX) / 2) * scale), y: (window.innerHeight / 2) - (((minY + maxY) / 2) * scale), scale },
+      selectedIds: targets.map(t => t.id)
+    });
+  },
+
+  addImage: (base64, x, y) => {
+    const img = new Image(); img.src = base64;
+    img.onload = () => {
+      const now = Date.now();
+      let w = img.width, h = img.height;
+      if (w > 800) { h = (800 / w) * h; w = 800; }
+      
+      const newId = `img-${now}`;
+      const newImage: ImageData = {
+        id: newId, name: `image-${now}`, type: 'image', zIndex: get().objectIds.length,
+        x, y, rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, visible: true, locked: false, draggable: true, createdAt: now, updatedAt: now,
+        src: base64, width: w, height: h, shadowColor: 'rgba(0,0,0,0)', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0, shadowOpacity: 1,
+      };
+      
+      set((state) => ({ objectsById: { ...state.objectsById, [newId]: newImage }, objectIds: [...state.objectIds, newId] }));
+    };
+  },
+
+  saveProject: () => {
+    const state = get();
+    const projectData = JSON.stringify({ version: 2, objectsById: state.objectsById, objectIds: state.objectIds, notebook: state.notebookContent });
+    const blob = new Blob([encryptData(projectData)], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `project-${Date.now()}.board`; a.click(); URL.revokeObjectURL(url);
+  },
+
+  loadProject: (encryptedString) => {
+    try {
+      const parsed = JSON.parse(decryptData(encryptedString));
+      
+      // Fallback for older V1 saves (Arrays) to migrate them to V2 Maps automatically
+      if (parsed.objects && !parsed.objectsById) {
+        const byId: Record<string, BoardObject> = {};
+        const ids: string[] = [];
+        parsed.objects.forEach((obj: BoardObject) => { byId[obj.id] = obj; ids.push(obj.id); });
+        set({ objectsById: byId, objectIds: ids, selectedIds: [] });
+      } else if (parsed.objectsById) {
+        set({ objectsById: parsed.objectsById, objectIds: parsed.objectIds, selectedIds: [] });
+      }
+      
+      if (parsed.notebook) set({ notebookContent: parsed.notebook });
+      get().showToast("Project Loaded!");
+    } catch (e) { get().showToast("Error loading file"); }
+  },
+
+  clearBoard: () => set({ objectsById: {}, objectIds: [], past: [], future: [], selectedIds: [] })
+}));
+
+// --- AUTOSAVE ENGINE ---
+
+// 1. Load the autosaved data when the app first starts
+const savedData = localStorage.getItem('visual_board_autosave');
+if (savedData) {
+  try {
+    const parsed = JSON.parse(savedData);
+    if (parsed.objectsById) {
+      useBoardStore.setState({ 
+        objectsById: parsed.objectsById, 
+        objectIds: parsed.objectIds || [],
+        notebookContent: parsed.notebook || '<h1>Project Notes</h1><p>Start documenting your whiteboard here...</p>' 
+      });
+    }
+  } catch (e) {
+    console.error("Failed to load autosave", e);
+  }
+}
+
+// 2. Automatically save in the background every time objects or notes change
+useBoardStore.subscribe((state, prevState) => {
+  // Check if the dictionary or the notebook changed
+  if (state.objectsById !== prevState.objectsById || state.notebookContent !== prevState.notebookContent) {
+    setTimeout(() => {
+      localStorage.setItem('visual_board_autosave', JSON.stringify({
+        objectsById: state.objectsById,
+        objectIds: state.objectIds,
+        notebook: state.notebookContent
+      }));
+    }, 500);
+  }
+});

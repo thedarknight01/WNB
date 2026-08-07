@@ -1,0 +1,254 @@
+/* ===========================
+   TIPTAP EDITOR BASE
+   =========================== */
+
+.tiptap:focus,
+.tiptap .ProseMirror:focus {
+  outline: none;
+}
+
+/* Document layout */
+.tiptap .ProseMirror {
+  padding: 16px 20px 80px 20px;
+  min-height: 200px;
+}
+
+/* ===========================
+   TYPOGRAPHY
+   =========================== */
+
+.tiptap p {
+  margin: 0 0 0.75em 0;
+  line-height: 1.7;
+  font-size: 0.9rem;
+  letter-spacing: 0.1px;
+}
+
+.tiptap h1, .tiptap h2, .tiptap h3, .tiptap h4 {
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  margin: 1.25em 0 0.5em 0;
+}
+
+.tiptap h1 { font-size: 1.875rem; }
+.tiptap h2 { font-size: 1.375rem; }
+.tiptap h3 { font-size: 1.125rem; }
+
+/* ===========================
+   LISTS
+   =========================== */
+
+.tiptap ul, .tiptap ol {
+  padding-left: 1.4rem;
+  margin: 0 0 0.75em 0;
+}
+.tiptap ul li { list-style-type: disc; margin-bottom: 0.2em; }
+.tiptap ol li { list-style-type: decimal; margin-bottom: 0.2em; }
+
+/* ===========================
+   TABLE
+   =========================== */
+
+.tiptap table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  table-layout: auto;
+  overflow: hidden;
+  border-radius: 6px;
+  border: 1px solid #94a3b8;
+}
+
+.tiptap th {
+  background-color: #1e40af;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-align: left;
+  padding: 8px 12px;
+  border: 1px solid #1d4ed8;
+  letter-spacing: 0.02em;
+}
+
+.tiptap td {
+  padding: 6px 12px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.85rem;
+  vertical-align: top;
+  min-width: 60px;
+}
+
+.tiptap tr:nth-child(even) td {
+  background-color: rgba(241, 245, 249, 0.6);
+}
+
+.tiptap tr:hover td {
+  background-color: rgba(219, 234, 254, 0.4);
+}
+
+/* Selected cell highlight */
+.tiptap td.selectedCell,
+.tiptap th.selectedCell {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  outline: 2px solid #3b82f6;
+  outline-offset: -1px;
+}
+
+/* Resize handle */
+.tiptap .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #3b82f6;
+  cursor: col-resize;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.tiptap th:hover .column-resize-handle,
+.tiptap td:hover .column-resize-handle {
+  opacity: 1;
+}
+.tiptap.resize-cursor {
+  cursor: col-resize;
+}
+
+/* Dark mode table */
+.editor-dark.tiptap table {
+  border-color: #334155;
+}
+.editor-dark.tiptap th {
+  background-color: #1e3a8a;
+  border-color: #1e40af;
+}
+.editor-dark.tiptap td {
+  border-color: #334155;
+}
+.editor-dark.tiptap tr:nth-child(even) td {
+  background-color: rgba(30, 41, 59, 0.6);
+}
+.editor-dark.tiptap tr:hover td {
+  background-color: rgba(30, 58, 138, 0.3);
+}
+
+/* ===========================
+   CODE & QUOTES
+   =========================== */
+
+.tiptap code {
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.85em;
+}
+
+.tiptap pre {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  margin: 1em 0;
+  overflow-x: auto;
+}
+
+.tiptap blockquote {
+  border-left: 4px solid #3b82f6;
+  margin: 1em 0;
+  padding: 8px 16px;
+  background: rgba(59, 130, 246, 0.05);
+  border-radius: 0 6px 6px 0;
+  color: inherit;
+}
+
+.tiptap hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 1.5em 0;
+}
+.editor-dark.tiptap hr {
+  border-top-color: #334155;
+}
+
+/* ===========================
+   IMAGES
+   =========================== */
+
+.tiptap img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin: 0.5em 0;
+  display: block;
+}
+.tiptap img.ProseMirror-selectednode {
+  outline: 2px solid #3b82f6;
+}
+
+/* ===========================
+   LINKS
+   =========================== */
+
+.tiptap a {
+  color: #3b82f6;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.tiptap a:hover {
+  color: #2563eb;
+}
+
+/* ===========================
+   MENTION PILLS
+   =========================== */
+
+.tiptap .mention-link {
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.tiptap .mention-link:hover {
+  background-color: rgba(59, 130, 246, 0.3);
+}
+.editor-dark.tiptap .mention-link {
+  background-color: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+}
+.editor-dark.tiptap .mention-link:hover {
+  background-color: rgba(96, 165, 250, 0.35);
+}
+
+/* ===========================
+   SCROLLBAR
+   =========================== */
+
+.notebook-scroll::-webkit-scrollbar { width: 5px; }
+.notebook-scroll::-webkit-scrollbar-track { background: transparent; }
+.notebook-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.3);
+  border-radius: 10px;
+}
+.notebook-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.6);
+}
+
+/* ===========================
+   THEME COLORS
+   =========================== */
+
+.editor-light.tiptap { color: #1e293b; }
+.editor-light.tiptap h1, .editor-light.tiptap h2 { color: #0f172a; }
+
+.editor-dark.tiptap { color: #cbd5e1; }
+.editor-dark.tiptap h1, .editor-dark.tiptap h2 { color: #f8fafc; }
+.editor-dark.tiptap code { background: rgba(99, 102, 241, 0.2); }
+.editor-dark.tiptap blockquote { background: rgba(59, 130, 246, 0.08); }
