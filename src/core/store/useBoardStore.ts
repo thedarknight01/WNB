@@ -3,13 +3,14 @@ import { encryptData, decryptData } from '../../utils/encryption';
 import type { BoardObject, LineData, RectangleData, CircleData, ImageData } from '../../types/objects';
 
 interface Camera { x: number; y: number; scale: number; }
-export type Tool = 'select' | 'pan' | 'pen' | 'eraser' | 'rectangle' | 'circle' | 'text';
+export type Tool = 'select' | 'pan' | 'pen' | 'eraser' | 'rectangle' | 'circle' | 'text' | 'arrow';
 
 // 1. Normalized State Interface
 interface BoardState {
   camera: Camera;
   tool: Tool;
   isToolLocked: boolean;
+  defaultArrowType: 'straight' | 'orthogonal';
   // THE NEW ENTERPRISE DATA STRUCTURE
   objectsById: Record<string, BoardObject>;
   objectIds: string[];
@@ -28,6 +29,7 @@ interface BoardState {
   // Actions
   setCamera: (camera: Camera) => void;
   setTool: (tool: Tool, locked?: boolean) => void;
+  setDefaultArrowType: (type: 'straight' | 'orthogonal') => void;
   setSelectedIds: (ids: string[]) => void;
   showToast: (msg: string) => void;
   setContextMenu: (menu: { x: number, y: number, id: string } | null) => void;
@@ -69,6 +71,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   camera: { x: 0, y: 0, scale: 1 },
   tool: 'select',
   isToolLocked: false,
+  defaultArrowType: 'straight',
   objectsById: {},
   objectIds: [],
   selectedIds: [],
@@ -88,6 +91,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   
   setCamera: (camera) => set({ camera }),
   setTool: (tool, locked = false) => set({ tool, isToolLocked: locked, selectedIds: [] }),
+  setDefaultArrowType: (type) => set({ defaultArrowType: type }),
   setSelectedIds: (ids) => set({ selectedIds: ids }),
   setContextMenu: (menu) => set({ contextMenu: menu }),
   setNotebookContent: (content) => set({ notebookContent: content }),
@@ -212,6 +216,12 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     } else if (lastObj.type === 'circle') {
       const circle = lastObj as CircleData;
       return { objectsById: { ...state.objectsById, [lastId]: { ...circle, radius: Math.hypot(pos.x - circle.x, pos.y - circle.y) } } };
+    } else if (lastObj.type === 'arrow') {
+      const arrow = lastObj as any;
+      const newPoints = [...arrow.points];
+      newPoints[newPoints.length - 2] = pos.x - arrow.x;
+      newPoints[newPoints.length - 1] = pos.y - arrow.y;
+      return { objectsById: { ...state.objectsById, [lastId]: { ...arrow, points: newPoints } } };
     }
     return state;
   }),

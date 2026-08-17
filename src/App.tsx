@@ -46,7 +46,6 @@ function App() {
         display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', margin: 0, overflow: 'hidden',
         cursor: isResizing ? 'col-resize' : 'default', backgroundColor: isDark ? '#0f172a' : '#f8fafc' 
       }}>
-        <TopRibbon />
         <div style={{ 
           display: 'flex', flex: 1, margin: 0, overflow: 'hidden',
           cursor: isResizing ? 'col-resize' : 'default', backgroundColor: isDark ? '#0f172a' : '#f8fafc' 
@@ -55,10 +54,12 @@ function App() {
           {/* LEFT PANEL: Canvas (Hidden if mode is Notebook Only) */}
           {viewMode !== 'notebook' && (
             <div style={{ 
+              display: 'flex', flexDirection: 'column',
               flex: viewMode === 'canvas' ? 1 : undefined,
               width: viewMode === 'split' ? `calc(100vw - ${notebookWidth}px)` : '100%',
               position: 'relative', pointerEvents: isResizing ? 'none' : 'auto', minWidth: 0, overflow: 'hidden' 
             }}>
+              <TopRibbon />
               <InfiniteCanvas />
             </div>
           )}
@@ -87,7 +88,9 @@ function App() {
 
           {/* PROPERTIES PANEL (Shown when an object is selected) */}
           {selectedIds.length > 0 && viewMode !== 'notebook' && (
-            <PropertiesPanel />
+            <div className="properties-panel-enter">
+              <PropertiesPanel />
+            </div>
           )}
           
         </div>

@@ -11,13 +11,15 @@ export const SettingsDashboard = () => {
   const [activeTab, setActiveTab] = useState<Tab>('appearance');
   const [newFont, setNewFont] = useState('');
   const [recordingKey, setRecordingKey] = useState<keyof typeof keybindings | null>(null);
+  const [showFontsList, setShowFontsList] = useState(false);
 
   const {
     isSettingsOpen, toggleSettings, theme, setTheme,
     viewMode, setViewMode, gridStyle, setGridStyle,
     gridColor, setGridColor, backgroundColor, setBackgroundColor,
     labelFontFamily, labelFontSize, updateLabelSettings, customFonts, addCustomFont, removeCustomFont,
-    keybindings, updateKeybinding, snapToGrid, toggleSnapToGrid, 
+    keybindings, updateKeybinding,
+    showRulers, toggleRulers,
   } = useSettingsStore();
 
   const listenForKey = (action: keyof typeof keybindings) => {
@@ -137,9 +139,12 @@ export const SettingsDashboard = () => {
                   <>
                     <div style={card}>
                       <div style={row}>
-                        <span style={{ fontWeight: 500 }}>Snap to Grid</span>
-                        <button onClick={toggleSnapToGrid} style={{ ...controlBtn, backgroundColor: snapToGrid ? '#3b82f6' : (isDark ? '#334155' : '#e5e7eb'), color: snapToGrid ? '#fff' : 'inherit' }}>
-                          {snapToGrid ? 'ON' : 'OFF'}
+                        <div>
+                          <span style={{ fontWeight: 500 }}>Rulers</span>
+                          <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: isDark ? '#64748b' : '#94a3b8' }}>Show coordinate rulers on canvas edges</p>
+                        </div>
+                        <button onClick={toggleRulers} style={{ ...controlBtn, backgroundColor: showRulers ? '#3b82f6' : (isDark ? '#334155' : '#e5e7eb'), color: showRulers ? '#fff' : 'inherit' }}>
+                          {showRulers ? 'ON' : 'OFF'}
                         </button>
                       </div>
                       <div style={row}>
@@ -177,11 +182,18 @@ export const SettingsDashboard = () => {
                         />
                         <button onClick={() => { if(newFont) { addCustomFont(newFont); setNewFont(''); } }} style={{ ...controlBtn, backgroundColor: '#3b82f6', color: '#fff', borderRadius: '16px', padding: '6px 16px' }}>Install</button>
                       </div>
-                      {customFonts.map((font, idx) => (
+                      <button 
+                        onClick={() => setShowFontsList(!showFontsList)}
+                        style={{ ...row, cursor: 'pointer', background: 'transparent', border: 'none', color: 'inherit', width: '100%', textAlign: 'left' }}
+                      >
+                        <span style={{ fontWeight: 500 }}>Installed Fonts ({customFonts.length})</span>
+                        <span style={{ fontSize: '0.8rem', transform: showFontsList ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
+                      </button>
+                      {showFontsList && customFonts.map((font, idx) => (
                         <div key={font} style={idx === customFonts.length - 1 ? lastRow : row}>
-                          <span style={{ fontFamily: font }}>{font}</span>
+                          <span style={{ fontFamily: font, fontSize: '0.85rem' }}>{font}</span>
                           {!['Arial', 'Courier New', 'Times New Roman'].includes(font) && (
-                            <button onClick={() => removeCustomFont(font)} style={{ ...controlBtn, color: '#ef4444', backgroundColor: 'transparent' }}>Remove</button>
+                            <button onClick={() => removeCustomFont(font)} style={{ ...controlBtn, color: '#ef4444', backgroundColor: 'transparent', fontSize: '0.8rem', padding: '4px 8px' }}>✕</button>
                           )}
                         </div>
                       ))}

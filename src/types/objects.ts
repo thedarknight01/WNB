@@ -2,6 +2,7 @@
 
 export type ObjectType =
   | "line"
+  | "arrow"
   | "rectangle"
   | "circle"
   | "text"
@@ -51,7 +52,7 @@ export interface BaseObject {
   id: string;
   name: string;
   label?: string;
-  type: 'line' | 'rectangle' | 'circle' | 'text' | 'image' | 'table' | 'video' | 'equation' | 'symbol';
+  type: 'line' | 'rectangle' | 'circle' | 'text' | 'image' | 'table' | 'video' | 'equation' | 'symbol' | 'arrow';
   zIndex: number;      // Layer
   parentId?: string;  // for grouping 
   groupId?: string;  // grouping
@@ -82,6 +83,12 @@ export interface LineData extends BaseObject, StrokeStyle, ShadowStyle {
   tension: number;
   lineCap: "butt" | "round" | "square";
   lineJoin: "miter" | "round" | "bevel";
+}
+
+export interface ArrowData extends BaseObject, StrokeStyle, ShadowStyle {
+  type: "arrow";
+  points: number[];
+  arrowType: "straight" | "orthogonal";
 }
 
 /* Rectangle*/
@@ -189,6 +196,7 @@ export interface SymbolData extends BaseObject, ShadowStyle {
 
 export type BoardObject =
   | LineData
+  | ArrowData
   | RectangleData
   | CircleData
   | TextData

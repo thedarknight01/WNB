@@ -96,6 +96,7 @@ export const NotebookEditor = () => {
     editorProps: {
       attributes: {
         class: `tiptap ${isDark ? 'editor-dark' : 'editor-light'}`,
+        style: 'cursor: text;',
       },
       handleDrop: (_view, event) => {
         const files = Array.from(event.dataTransfer?.files || []).filter(f => f.type.startsWith('image/'));
@@ -218,7 +219,7 @@ export const NotebookEditor = () => {
             const f = e.target.value;
             if (f) editor.chain().focus().setFontFamily(f).run();
           }}
-          value=""
+          value={editor.getAttributes('textStyle').fontFamily || ""}
           title="Font Family"
           style={{
             background: isDark ? '#1e293b' : '#fff',
@@ -314,7 +315,7 @@ export const NotebookEditor = () => {
         <div style={{ position: 'relative' }}>
           <button onClick={() => setShowTableInput(v => !v)} style={btn(editor.isActive('table') || showTableInput)} title="Table"><TableIcon size={14} /></button>
           {showTableInput && (
-            <div style={{ ...dropdown, minWidth: '160px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ ...dropdown, right: 0, left: 'auto', minWidth: '160px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', letterSpacing: '0.05em' }}>INSERT TABLE</span>
               <div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '0.75rem' }}>
                 <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>Rows</span>
@@ -345,7 +346,7 @@ export const NotebookEditor = () => {
         <div style={{ position: 'relative' }}>
           <button onClick={() => { setShowLinkInput(v => !v); setLinkHref(editor.getAttributes('link').href || ''); }} style={btn(editor.isActive('link') || showLinkInput)} title="Link"><LinkIcon size={14} /></button>
           {showLinkInput && (
-            <div style={{ ...dropdown, display: 'flex', gap: '6px', minWidth: '220px' }}>
+            <div style={{ ...dropdown, right: 0, left: 'auto', display: 'flex', gap: '6px', minWidth: '220px' }}>
               <input
                 type="text" value={linkHref} onChange={e => setLinkHref(e.target.value)}
                 onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') insertLink(); }}

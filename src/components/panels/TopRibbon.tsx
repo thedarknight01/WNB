@@ -19,6 +19,7 @@ const symbolCategories = {
 export const TopRibbon = () => {
   const [activeTab, setActiveTab] = useState<'File' | 'Home' | 'Insert' | 'Format'>('Home');
   const [isLayoutOpen, setIsLayoutOpen] = useState(false);
+  const [showArrowMenu, setShowArrowMenu] = useState(false);
   const [showSymbolPicker, setShowSymbolPicker] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
@@ -304,6 +305,26 @@ export const TopRibbon = () => {
           <>
             <div style={{ display: 'flex', gap: '4px' }}>
               <button onClick={() => handleToolClick('pen')} onDoubleClick={() => handleToolDoubleClick('pen')} style={toolBtn(tool === 'pen', tool === 'pen' && isToolLocked)}><Pen size={18} />Pen</button>
+              <div style={{ position: 'relative' }}>
+                <button 
+                  onClick={() => setShowArrowMenu(!showArrowMenu)}
+                  style={toolBtn(tool === 'arrow', tool === 'arrow' && isToolLocked)}
+                >
+                  <span style={{ transform: 'rotate(-45deg)' }}>➔</span> Arrow
+                </button>
+                {showArrowMenu && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, marginTop: '4px',
+                    background: isDark ? '#1e293b' : '#ffffff',
+                    border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
+                    borderRadius: '8px', padding: '4px', display: 'flex', flexDirection: 'column',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', zIndex: 1000
+                  }}>
+                    <button onClick={() => { handleToolClick('arrow'); useBoardStore.getState().setDefaultArrowType('straight'); setShowArrowMenu(false); }} style={{ ...toolBtn(useBoardStore.getState().defaultArrowType === 'straight'), flexDirection: 'row', justifyContent: 'flex-start', minWidth: '120px' }}>Straight</button>
+                    <button onClick={() => { handleToolClick('arrow'); useBoardStore.getState().setDefaultArrowType('orthogonal'); setShowArrowMenu(false); }} style={{ ...toolBtn(useBoardStore.getState().defaultArrowType === 'orthogonal'), flexDirection: 'row', justifyContent: 'flex-start', minWidth: '120px' }}>Orthogonal</button>
+                  </div>
+                )}
+              </div>
               <button onClick={() => handleToolClick('rectangle')} onDoubleClick={() => handleToolDoubleClick('rectangle')} style={toolBtn(tool === 'rectangle', tool === 'rectangle' && isToolLocked)}><Square size={18} />Rectangle</button>
               <button onClick={() => handleToolClick('circle')} onDoubleClick={() => handleToolDoubleClick('circle')} style={toolBtn(tool === 'circle', tool === 'circle' && isToolLocked)}><CircleIcon size={18} />Circle</button>
               <button onClick={() => handleToolClick('text')} onDoubleClick={() => handleToolDoubleClick('text')} style={toolBtn(tool === 'text', tool === 'text' && isToolLocked)}><Type size={18} />Text</button>
@@ -342,7 +363,7 @@ export const TopRibbon = () => {
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
             color: isDark ? '#f8fafc' : '#0f172a'
           }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem' }}>Select Symbol</h2>
+            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem', color: isDark ? '#f8fafc' : '#0f172a' }}>Select Symbol</h2>
             {Object.entries(symbolCategories).map(([category, symbols]) => (
               <div key={category} style={{ marginBottom: '16px' }}>
                 <h3 style={{ margin: '0 0 8px 0', fontSize: '0.875rem', color: isDark ? '#94a3b8' : '#64748b' }}>{category}</h3>
@@ -397,13 +418,13 @@ export const TopRibbon = () => {
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
             color: isDark ? '#f8fafc' : '#0f172a'
           }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem' }}>Insert Video</h2>
+            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem', color: isDark ? '#f8fafc' : '#0f172a' }}>Insert Video</h2>
             <div style={{ marginBottom: '16px' }}>
-              <h3 style={{ margin: '0 0 8px 0', fontSize: '0.875rem' }}>Upload from Device</h3>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '0.875rem', color: isDark ? '#f8fafc' : '#0f172a' }}>Upload from Device</h3>
               <input type="file" accept="video/mp4,video/webm" onChange={handleVideoUpload} style={{ width: '100%' }} />
             </div>
             <div style={{ marginBottom: '16px' }}>
-              <h3 style={{ margin: '0 0 8px 0', fontSize: '0.875rem' }}>YouTube Link</h3>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '0.875rem', color: isDark ? '#f8fafc' : '#0f172a' }}>YouTube Link</h3>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input 
                   type="text" 
@@ -446,7 +467,7 @@ export const TopRibbon = () => {
             color: isDark ? '#f8fafc' : '#0f172a',
             display: 'flex', flexDirection: 'column', alignItems: 'center'
           }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem', width: '100%', textAlign: 'left' }}>Insert Table</h2>
+            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem', width: '100%', textAlign: 'left', color: isDark ? '#f8fafc' : '#0f172a' }}>Insert Table</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', background: isDark ? '#0f172a' : '#f8fafc', padding: '8px', borderRadius: '8px' }}>
               {Array.from({ length: 6 }).map((_, r) => (
                 <div key={r} style={{ display: 'flex', gap: '2px' }}>
@@ -487,7 +508,7 @@ export const TopRibbon = () => {
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
             color: isDark ? '#f8fafc' : '#0f172a'
           }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem' }}>Insert Equation</h2>
+            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem', color: isDark ? '#f8fafc' : '#0f172a' }}>Insert Equation</h2>
             <textarea
               value={equationLatex}
               onChange={e => setEquationLatex(e.target.value)}
@@ -533,7 +554,7 @@ export const TopRibbon = () => {
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
             color: isDark ? '#f8fafc' : '#0f172a'
           }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem' }}>Insert Link</h2>
+            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem', color: isDark ? '#f8fafc' : '#0f172a' }}>Insert Link</h2>
             <div style={{ display: 'flex', gap: '8px' }}>
               <input 
                 type="text" 
@@ -576,8 +597,8 @@ export const TopRibbon = () => {
             color: isDark ? '#f8fafc' : '#0f172a',
             textAlign: 'center'
           }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem' }}>Notice</h2>
-            <p style={{ margin: '0 0 24px 0' }}>PDF Export coming soon!</p>
+            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem', color: isDark ? '#f8fafc' : '#0f172a' }}>Notice</h2>
+            <p style={{ margin: '0 0 24px 0', color: isDark ? '#cbd5e1' : '#475569' }}>PDF Export coming soon!</p>
             <button 
               onClick={() => setShowPdfAlert(false)}
               style={{

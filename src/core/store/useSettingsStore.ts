@@ -29,6 +29,7 @@ interface SettingsState {
   customFonts: string[];
   keybindings: Keybindings;
   snapToGrid: boolean;
+  showRulers: boolean;
 
   setTheme: (theme: 'light' | 'dark') => void;
   setGridStyle: (style: 'grid' | 'dot' | 'none') => void;
@@ -43,6 +44,7 @@ interface SettingsState {
   removeCustomFont: (fontFamily: string) => void;
   updateKeybinding: (action: keyof Keybindings, key: string) => void;
   toggleSnapToGrid: () => void;
+  toggleRulers: () => void;
 }
 
 // Wrap the entire store in `persist`
@@ -57,6 +59,7 @@ export const useSettingsStore = create<SettingsState>()(
       customFonts: ['Arial', 'Courier New', 'Times New Roman', 'Inter', 'Roboto'],
       keybindings: { select: 'v', pen: 'p', rectangle: 'r', circle: 'c', text: 't', eraser: 'e' },
       snapToGrid: false,
+      showRulers: true,
 
       setTheme: (theme) => set({ theme, backgroundColor: theme === 'dark' ? '#0f172a' : '#f8fafc', gridColor: theme === 'dark' ? '#334155' : '#cbd5e1' }),
       setGridStyle: (style) => set({ gridStyle: style }),
@@ -88,7 +91,8 @@ export const useSettingsStore = create<SettingsState>()(
       updateKeybinding: (action, key) => set((state) => ({
         keybindings: { ...state.keybindings, [action]: key.toLowerCase() }
       })),
-      toggleSnapToGrid: () => set((state) => ({ snapToGrid: !state.snapToGrid }))
+      toggleSnapToGrid: () => set((state) => ({ snapToGrid: !state.snapToGrid })),
+      toggleRulers: () => set((state) => ({ showRulers: !state.showRulers }))
     }),
     {
       name: 'visual_board_settings', // The key used in localStorage

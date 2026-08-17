@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Line, Rect, Circle, Text, Image as KonvaImage, Group } from 'react-konva';
+import { Line, Rect, Circle, Text, Image as KonvaImage, Group, Arrow } from 'react-konva';
 import type { BoardObject, LineData, RectangleData, CircleData, TextData, ImageData } from '../../types/objects';
 import { useBoardStore } from '../../core/store/useBoardStore';
 const CanvasImage = ({ obj, commonProps }: { obj: ImageData, commonProps: any }) => {
@@ -22,6 +22,13 @@ interface Props {
   tool: string;
 }
 
+const getOrthogonalPoints = (pts: number[]) => {
+  if (pts.length < 4) return pts;
+  const x1 = pts[0], y1 = pts[1], x2 = pts[pts.length-2], y2 = pts[pts.length-1];
+  const midX = (x1 + x2) / 2;
+  return [x1, y1, midX, y1, midX, y2, x2, y2];
+};
+
 export const ShapeRenderer = ({ obj, commonProps, editingTextId, setEditingText, tool }: Props) => {
   if (obj.type === 'line') {
     const line = obj as LineData;
@@ -31,6 +38,34 @@ export const ShapeRenderer = ({ obj, commonProps, editingTextId, setEditingText,
   if (obj.type === 'rectangle') {
     const rect = obj as RectangleData;
     return <Rect key={obj.id} {...commonProps} width={rect.width} height={rect.height} fill={rect.fill} stroke={rect.stroke} strokeWidth={rect.strokeWidth} dash={rect.dash} cornerRadius={rect.cornerRadius} shadowColor={rect.shadowColor} shadowBlur={rect.shadowBlur} shadowOffsetX={rect.shadowOffsetX} shadowOffsetY={rect.shadowOffsetY} shadowOpacity={rect.shadowOpacity} />;
+  }
+  
+  if (obj.type === 'arrow') {
+    const arrow = obj as any;
+    const pointsToUse = arrow.arrowType === 'orthogonal' 
+      ? getOrthogonalPoints(arrow.points) 
+      : [arrow.points[0], arrow.points[1], arrow.points[arrow.points.length-2], arrow.points[arrow.points.length-1]];
+    
+    return (
+      <Arrow
+        key={obj.id}
+        {...commonProps}
+        points={pointsToUse}
+        stroke={arrow.stroke}
+        strokeWidth={arrow.strokeWidth}
+        dash={arrow.dash}
+        tension={0}
+        lineCap="round"
+        lineJoin="round"
+        pointerLength={arrow.strokeWidth * 3}
+        pointerWidth={arrow.strokeWidth * 3}
+        shadowColor={arrow.shadowColor}
+        shadowBlur={arrow.shadowBlur}
+        shadowOffsetX={arrow.shadowOffsetX}
+        shadowOffsetY={arrow.shadowOffsetY}
+        shadowOpacity={arrow.shadowOpacity}
+      />
+    );
   }
   
   if (obj.type === 'circle') {

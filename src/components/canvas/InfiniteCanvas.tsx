@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { Stage, Layer, Rect, Transformer, Text } from 'react-konva';
+import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
+import { Stage, Layer, Rect, Transformer, Text, Line, Circle } from 'react-konva';
 import { useBoardStore } from '../../core/store/useBoardStore';
 import { useSettingsStore } from '../../core/store/useSettingsStore';
 import { BackgroundGrid } from './BackgroundGrid';
@@ -9,6 +9,8 @@ import { TextInputOverlay } from './TextInputOverlay';
 import { HtmlOverlays } from './HtmlOverlays';
 import type { LineData, RectangleData, CircleData, TextData } from '../../types/objects';
 import { ContextMenu } from '../panels/ContextMenu';
+import { CanvasRuler, RULER_SIZE } from './CanvasRuler';
+import { computeAlignmentGuides } from '../../hooks/useAlignmentGuides';
 
 
 const CanvasLabels = () => {
@@ -48,7 +50,7 @@ const CanvasLabels = () => {
             oMaxX = o.x + ((o as any).width * o.scaleX);
             oMaxY = o.y + ((o as any).fontSize * o.scaleY);
           }
-          else if (o.type === 'line') {
+          else if (o.type === 'line' || o.type === 'arrow') {
             // Lines are made of multiple point coordinates
             const line = o as any;
             const xs = line.points.filter((_: any, i: number) => i % 2 === 0).map((p: number) => p + o.x);
@@ -93,7 +95,7 @@ export const InfiniteCanvas = () => {
     setContextMenu
   } = useBoardStore();
 
-  const { backgroundColor } = useSettingsStore();
+  const { backgroundColor, showRulers } = useSettingsStore();
   const objects = objectIds.map(id => objectsById[id]).filter(Boolean);
   const [isDrawing, setIsDrawing] = useState(false);
   const [editingText, setEditingText] = useState<{ id: string, x: number, y: number, text: string } | null>(null);
@@ -101,6 +103,9 @@ export const InfiniteCanvas = () => {
   const [isPanning, setIsPanning] = useState(false);
   const [selectionBox, setSelectionBox] = useState<{ startX: number, startY: number, endX: number, endY: number } | null>(null);
   const [dragStartPos, setDragStartPos] = useState<{ x: number, y: number } | null>(null);
+  const [isDraggingObjects, setIsDraggingObjects] = useState(false);
+  const [guideLines, setGuideLines] = useState<{ id: string; x1: number; y1: number; x2: number; y2: number; type: 'h' | 'v' }[]>([]);
+  const [stageSize, setStageSize] = useState({ w: window.innerWidth, h: window.innerHeight });
 
   const stageRef = useRef<any>(null);
   const transformerRef = useRef<any>(null);
@@ -108,13 +113,20 @@ export const InfiniteCanvas = () => {
   // Initialize modular keyboard shortcuts
   useKeyboardShortcuts(!!editingText, setIsSpacePressed, setIsPanning);
 
+  // Track window size for rulers
+  useEffect(() => {
+    const onResize = () => setStageSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   useEffect(() => {
     if (transformerRef.current && stageRef.current) {
       const nodes = selectedIds.map((id) => stageRef.current.findOne(`#${id}`)).filter(Boolean);
       transformerRef.current.nodes(nodes);
       transformerRef.current.getLayer().batchDraw();
     }
-  }, [selectedIds, objectsById ]);
+  }, [selectedIds, objectsById]);
 
 
   useEffect(() => {
@@ -243,6 +255,7 @@ export const InfiniteCanvas = () => {
     const base = createBaseObject(tool, pos);
 
     if (tool === 'pen') addObject({ ...base, type: 'line', points: [0, 0], stroke: '#000000', strokeWidth: 3, tension: 0.5, lineCap: 'round', lineJoin: 'round' } as LineData);
+    else if (tool === 'arrow') addObject({ ...base, type: 'arrow', points: [0, 0, 0, 0], arrowType: useBoardStore.getState().defaultArrowType, stroke: '#000000', strokeWidth: 3, tension: 0 } as any);
     else if (tool === 'rectangle') addObject({ ...base, type: 'rectangle', width: 0, height: 0, fill: 'transparent', stroke: '#000000', strokeWidth: 3, cornerRadius: 0 } as RectangleData);
     else if (tool === 'circle') addObject({ ...base, type: 'circle', radius: 0, fill: 'transparent', stroke: '#000000', strokeWidth: 3 } as CircleData);
     else if (tool === 'text') {
@@ -264,7 +277,7 @@ export const InfiniteCanvas = () => {
     }
   };
 
-  const handleMouseMove = (e: any) => {
+  const handleMouseMove = useCallback((e: any) => {
     if (isPanning) {
       setCamera({ ...camera, x: camera.x + e.evt.movementX, y: camera.y + e.evt.movementY });
       return;
@@ -272,11 +285,25 @@ export const InfiniteCanvas = () => {
 
     const pos = getCanvasCoordinates();
 
-    if (dragStartPos && tool === 'select') {
-      moveSelectedObjects(pos.x - dragStartPos.x, pos.y - dragStartPos.y);
+    if (dragStartPos && tool === 'select' && isDraggingObjects && selectedIds.length > 0) {
+      const dx = pos.x - dragStartPos.x;
+      const dy = pos.y - dragStartPos.y;
+      moveSelectedObjects(dx, dy);
       setDragStartPos(pos);
+
+      // Compute alignment guides
+      const viewBounds = {
+        left: -camera.x / camera.scale,
+        top: -camera.y / camera.scale,
+        right: (stageSize.w - camera.x) / camera.scale,
+        bottom: (stageSize.h - camera.y) / camera.scale,
+      };
+      const result = computeAlignmentGuides(selectedIds, useBoardStore.getState().objectsById, objectIds, viewBounds);
+      setGuideLines(result.guides);
       return;
     }
+
+
 
     if (selectionBox) {
       setSelectionBox({ ...selectionBox, endX: pos.x, endY: pos.y });
@@ -285,11 +312,13 @@ export const InfiniteCanvas = () => {
 
     if (!isDrawing) return;
     if (tool === 'pen') addPointToLastLine([pos.x, pos.y]);
-    else if (tool === 'rectangle' || tool === 'circle') updateCurrentShape(pos);
-  };
+    else if (tool === 'rectangle' || tool === 'circle' || tool === 'arrow') updateCurrentShape(pos);
+  }, [isPanning, camera, dragStartPos, tool, isDraggingObjects, selectedIds, selectionBox, isDrawing, objectIds, stageSize]);
 
   const handleMouseUp = (e: any) => {
     setDragStartPos(null);
+    setIsDraggingObjects(false);
+    setGuideLines([]); // Clear alignment guides on release
     if (selectionBox) {
       const boxX = Math.min(selectionBox.startX, selectionBox.endX);
       const boxY = Math.min(selectionBox.startY, selectionBox.endY);
@@ -330,11 +359,13 @@ export const InfiniteCanvas = () => {
     return 'crosshair';
   };
 
+  // Ruler offset: if rulers are shown, shift stage so it doesn't overlap
+  const rulerOffset = showRulers ? RULER_SIZE : 0;
 
   return (
     <>
       {toast && (
-        <div style={{
+        <div className="canvas-toast" style={{
           position: 'absolute',
           bottom: '24px',
           left: '24px',
@@ -351,13 +382,30 @@ export const InfiniteCanvas = () => {
         </div>
       )}
 
+      {/* Rulers */}
+      {showRulers && (
+        <CanvasRuler
+          camera={camera}
+          stageWidth={stageSize.w}
+          stageHeight={stageSize.h}
+        />
+      )}
+
       <Stage
-        ref={stageRef} width={window.innerWidth} height={window.innerHeight}
+        ref={stageRef}
+        width={stageSize.w - rulerOffset}
+        height={stageSize.h - rulerOffset}
+        style={{
+          position: 'absolute',
+          top: rulerOffset,
+          left: rulerOffset,
+          cursor: getCursor(),
+          backgroundColor: backgroundColor,
+        }}
         onContextMenu={(e) => e.evt.preventDefault()}
         onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
         draggable={tool === 'pan' && !isSpacePressed} x={camera.x} y={camera.y} scaleX={camera.scale} scaleY={camera.scale}
         onDragMove={(e) => { if (tool === 'pan' && e.target === stageRef.current) setCamera({ x: e.target.x(), y: e.target.y(), scale: camera.scale }); }}
-        style={{ cursor: getCursor(), backgroundColor: backgroundColor }}
       >
         <BackgroundGrid />
         <Layer>
@@ -428,14 +476,20 @@ export const InfiniteCanvas = () => {
                 }
                 if (tool === 'select') {
                   e.cancelBubble = true;
-                  // FIXED: o.parentId instead of o.groupId
                   const groupIds = obj.parentId ? objects.filter(o => o.parentId === obj.parentId).map(o => o.id) : [obj.id];
 
-                  if (e.evt.shiftKey) setSelectedIds(isSelected ? selectedIds.filter(id => !groupIds.includes(id)) : [...new Set([...selectedIds, ...groupIds])]);
-                  else if (!isSelected) setSelectedIds(groupIds);
+                  if (e.evt.shiftKey) {
+                    setSelectedIds(isSelected ? selectedIds.filter(id => !groupIds.includes(id)) : [...new Set([...selectedIds, ...groupIds])]);
+                  } else if (!isSelected) {
+                    setSelectedIds(groupIds);
+                  }
 
-                  saveHistory();
-                  setDragStartPos(getCanvasCoordinates());
+                  // Only start dragging if the object was already selected before this click
+                  if (isSelected) {
+                    saveHistory();
+                    setDragStartPos(getCanvasCoordinates());
+                    setIsDraggingObjects(true);
+                  }
                 }
               },
               onMouseEnter: (e: any) => {
@@ -446,10 +500,41 @@ export const InfiniteCanvas = () => {
             };
 
             return (
-              <ShapeRenderer
-                key={obj.id} obj={obj} commonProps={commonProps}
-                editingTextId={editingText?.id} setEditingText={setEditingText} tool={tool}
-              />
+              <Fragment key={obj.id}>
+                <ShapeRenderer
+                  obj={obj} commonProps={commonProps}
+                  editingTextId={editingText?.id} setEditingText={setEditingText} tool={tool}
+                />
+                {isSelected && obj.type === 'arrow' && (() => {
+                  const arrow = obj as any;
+                  return (
+                    <>
+                      <Circle
+                        x={arrow.x + arrow.points[0]} y={arrow.y + arrow.points[1]} radius={6} fill="#3b82f6" stroke="#fff" strokeWidth={2} draggable
+                        onDragMove={(e) => {
+                          const newPoints = [...arrow.points];
+                          newPoints[0] = e.target.x() - arrow.x;
+                          newPoints[1] = e.target.y() - arrow.y;
+                          updateObject(arrow.id, { points: newPoints });
+                        }}
+                        onDragEnd={(e) => { e.cancelBubble = true; saveHistory(); }}
+                        onMouseDown={(e) => { e.cancelBubble = true; }}
+                      />
+                      <Circle
+                        x={arrow.x + arrow.points[arrow.points.length-2]} y={arrow.y + arrow.points[arrow.points.length-1]} radius={6} fill="#3b82f6" stroke="#fff" strokeWidth={2} draggable
+                        onDragMove={(e) => {
+                          const newPoints = [...arrow.points];
+                          newPoints[newPoints.length-2] = e.target.x() - arrow.x;
+                          newPoints[newPoints.length-1] = e.target.y() - arrow.y;
+                          updateObject(arrow.id, { points: newPoints });
+                        }}
+                        onDragEnd={(e) => { e.cancelBubble = true; saveHistory(); }}
+                        onMouseDown={(e) => { e.cancelBubble = true; }}
+                      />
+                    </>
+                  );
+                })()}
+              </Fragment>
             );
           })}
           <CanvasLabels />
@@ -474,11 +559,24 @@ export const InfiniteCanvas = () => {
           {selectionBox && (
             <Rect x={Math.min(selectionBox.startX, selectionBox.endX)} y={Math.min(selectionBox.startY, selectionBox.endY)} width={Math.abs(selectionBox.startX - selectionBox.endX)} height={Math.abs(selectionBox.startY - selectionBox.endY)} fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeWidth={1 / camera.scale} listening={false} />
           )}
+
+          {/* Alignment Guide Lines */}
+          {guideLines.map(guide => (
+            <Line
+              key={guide.id}
+              points={[guide.x1, guide.y1, guide.x2, guide.y2]}
+              stroke="#e11d48"
+              strokeWidth={1 / camera.scale}
+              dash={[4 / camera.scale, 4 / camera.scale]}
+              listening={false}
+              opacity={0.85}
+            />
+          ))}
         </Layer>
       </Stage>
 
       {editingText && <TextInputOverlay editingText={editingText} setEditingText={setEditingText} camera={camera} />}
-      <HtmlOverlays />
+      <HtmlOverlays rulerOffset={rulerOffset} />
       <ContextMenu />
     </>
   );

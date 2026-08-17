@@ -298,7 +298,7 @@ export const PropertiesPanel = () => {
                 onChange={(e) => {
                   const newRows = Math.max(1, Number(e.target.value));
                   const newData = resizeData((firstObj as any).data || [], newRows, (firstObj as any).cols || 3);
-                  handleUpdate({ rows: newRows, data: newData });
+                  handleUpdate({ rows: newRows, data: newData, height: newRows * 36 });
                 }} 
                 style={inputStyle} 
               />
@@ -311,7 +311,7 @@ export const PropertiesPanel = () => {
                 onChange={(e) => {
                   const newCols = Math.max(1, Number(e.target.value));
                   const newData = resizeData((firstObj as any).data || [], (firstObj as any).rows || 3, newCols);
-                  handleUpdate({ cols: newCols, data: newData });
+                  handleUpdate({ cols: newCols, data: newData, width: newCols * 130 });
                 }} 
                 style={inputStyle} 
               />
@@ -323,7 +323,7 @@ export const PropertiesPanel = () => {
               onClick={() => {
                 const r = ((firstObj as any).rows || 3) + 1;
                 const c = (firstObj as any).cols || 3;
-                handleUpdate({ rows: r, data: resizeData((firstObj as any).data || [], r, c) });
+                handleUpdate({ rows: r, data: resizeData((firstObj as any).data || [], r, c), height: r * 36 });
               }}
               style={{ ...inputStyle, width: '48%', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}
             >
@@ -333,7 +333,7 @@ export const PropertiesPanel = () => {
               onClick={() => {
                 const r = Math.max(1, ((firstObj as any).rows || 3) - 1);
                 const c = (firstObj as any).cols || 3;
-                handleUpdate({ rows: r, data: resizeData((firstObj as any).data || [], r, c) });
+                handleUpdate({ rows: r, data: resizeData((firstObj as any).data || [], r, c), height: r * 36 });
               }}
               style={{ ...inputStyle, width: '48%', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}
             >
@@ -346,7 +346,7 @@ export const PropertiesPanel = () => {
               onClick={() => {
                 const r = (firstObj as any).rows || 3;
                 const c = ((firstObj as any).cols || 3) + 1;
-                handleUpdate({ cols: c, data: resizeData((firstObj as any).data || [], r, c) });
+                handleUpdate({ cols: c, data: resizeData((firstObj as any).data || [], r, c), width: c * 130 });
               }}
               style={{ ...inputStyle, width: '48%', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}
             >
@@ -356,13 +356,76 @@ export const PropertiesPanel = () => {
               onClick={() => {
                 const r = (firstObj as any).rows || 3;
                 const c = Math.max(1, ((firstObj as any).cols || 3) - 1);
-                handleUpdate({ cols: c, data: resizeData((firstObj as any).data || [], r, c) });
+                handleUpdate({ cols: c, data: resizeData((firstObj as any).data || [], r, c), width: c * 130 });
               }}
               style={{ ...inputStyle, width: '48%', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}
             >
               <Minus size={12}/> Remove Column
             </button>
           </div>
+
+          {/* Header Row Toggle */}
+          <div style={rowStyle}>
+            <span style={{ fontSize: '0.75rem' }}>Header Row</span>
+            <button
+              onClick={() => handleUpdate({ hasHeader: !(firstObj as any).hasHeader })}
+              style={{ ...iconBtn(!!(firstObj as any).hasHeader !== false), padding: '4px 8px', fontSize: '0.7rem' }}
+            >
+              {(firstObj as any).hasHeader === false ? 'Off' : 'On'}
+            </button>
+          </div>
+
+          {/* Table Theme */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={labelStyle}>Table Theme</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+              {Object.entries({
+                blue: '#1e40af', slate: '#1e293b', emerald: '#065f46',
+                rose: '#9f1239', amber: '#92400e', purple: '#4c1d95'
+              }).map(([name, color]) => (
+                <button
+                  key={name}
+                  title={name.charAt(0).toUpperCase() + name.slice(1)}
+                  onClick={() => handleUpdate({ tableTheme: name })}
+                  style={{
+                    width: '24px', height: '24px', borderRadius: '4px',
+                    background: color, border: (firstObj as any).tableTheme === name
+                      ? '2px solid #3b82f6' : '2px solid transparent',
+                    cursor: 'pointer',
+                    boxShadow: (firstObj as any).tableTheme === name ? '0 0 0 2px rgba(59,130,246,0.4)' : 'none',
+                    transition: 'all 0.15s',
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div style={rowStyle}>
+            <span style={{ fontSize: '0.75rem' }}>Text Color</span>
+            <input type="color" value={(firstObj as any).tableTextColor || '#0f172a'} onChange={(e) => handleUpdate({ tableTextColor: e.target.value })} style={{ width: '28px', height: '22px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
+          </div>
+          <div style={rowStyle}>
+            <span style={{ fontSize: '0.75rem' }}>Border Color</span>
+            <input type="color" value={(firstObj as any).tableBorderColor || '#93c5fd'} onChange={(e) => handleUpdate({ tableBorderColor: e.target.value })} style={{ width: '28px', height: '22px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
+          </div>
+
+          {/* Font Size */}
+          <div style={rowStyle}>
+            <span style={{ fontSize: '0.75rem' }}>Font Size</span>
+            <div style={{ display: 'flex', alignItems: 'center', background: isDark ? '#0f172a' : '#f1f5f9', border: isDark ? '1px solid #334155' : '1px solid #cbd5e1', borderRadius: '4px' }}>
+              <button onClick={() => handleUpdate({ tableFontSize: Math.max(8, ((firstObj as any).tableFontSize || 13) - 1) })} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 5px' }}><Minus size={11}/></button>
+              <input type="number" min="8" max="32" value={(firstObj as any).tableFontSize || 13} onChange={(e) => handleUpdate({ tableFontSize: Number(e.target.value) })} style={{ ...inputStyle, border: 'none', width: '36px', textAlign: 'center' }} />
+              <button onClick={() => handleUpdate({ tableFontSize: Math.min(32, ((firstObj as any).tableFontSize || 13) + 1) })} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 5px' }}><Plus size={11}/></button>
+            </div>
+          </div>
+
+          {/* Reset column widths */}
+          <button
+            onClick={() => handleUpdate({ colWidths: undefined })}
+            style={{ ...inputStyle, width: '100%', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px', marginTop: '4px' }}
+          >
+            Reset Column Widths
+          </button>
         </div>
       )}
 
@@ -420,50 +483,85 @@ export const PropertiesPanel = () => {
         </div>
       )}
 
-      {/* FILL & STROKE */}
+      {/* ARROW PROPERTIES */}
+      {firstObj.type === 'arrow' && (
+        <div style={sectionStyle}>
+          <span style={labelStyle}>Arrow Settings</span>
+          <div style={rowStyle}>
+            <span style={{ fontSize: '0.75rem' }}>Routing</span>
+            <select 
+              value={(firstObj as any).arrowType || 'straight'}
+              onChange={(e) => handleUpdate({ arrowType: e.target.value })}
+              style={{ ...inputStyle, width: '100px' }}
+            >
+              <option value="straight">Straight</option>
+              <option value="orthogonal">Orthogonal</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* COLORS — Context-Aware */}
       <div style={sectionStyle}>
-        <span style={labelStyle}>Appearance</span>
+        <span style={labelStyle}>
+          {['line', 'arrow'].includes(firstObj.type) ? 'Stroke' : firstObj.type === 'text' ? 'Color' : 'Appearance'}
+        </span>
         
-        {/* Fill (Not for lines) */}
-        {firstObj.type !== 'line' && (
+        {/* Fill — shapes, circles, images */}
+        {['rectangle', 'circle', 'image'].includes(firstObj.type) && (
           <div style={rowStyle}>
             <span style={{ fontSize: '0.75rem' }}>Fill</span>
-            <input type="color" value={(firstObj as any).fill || '#000000'} onChange={(e) => handleUpdate({ fill: e.target.value })} style={{ width: '32px', height: '24px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <input type="color" value={(firstObj as any).fill || '#000000'} onChange={(e) => handleUpdate({ fill: e.target.value })} style={{ width: '28px', height: '22px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
+              <button onClick={() => handleUpdate({ fill: 'transparent' })} style={{ ...iconBtn((firstObj as any).fill === 'transparent'), padding: '2px 6px', fontSize: '0.65rem' }} title="No Fill">∅</button>
+            </div>
           </div>
         )}
-        
-        {/* Stroke */}
-        <div style={rowStyle}>
-          <span style={{ fontSize: '0.75rem' }}>Stroke</span>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <input type="color" value={(firstObj as any).stroke || '#000000'} onChange={(e) => handleUpdate({ stroke: e.target.value })} style={{ width: '32px', height: '24px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
-            <input type="number" min="0" max="50" value={(firstObj as any).strokeWidth || 0} onChange={(e) => handleUpdate({ strokeWidth: Number(e.target.value) })} style={inputStyle} />
-          </div>
-        </div>
 
-        {/* Dash */}
-        <div style={rowStyle}>
-          <span style={{ fontSize: '0.75rem' }}>Stroke Style</span>
-          <select 
-            value={(firstObj as any).dash ? ((firstObj as any).dash[0] === 5 ? 'dotted' : 'dashed') : 'solid'} 
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === 'solid') handleUpdate({ dash: undefined });
-              else if (val === 'dashed') handleUpdate({ dash: [10, 10] });
-              else if (val === 'dotted') handleUpdate({ dash: [5, 5] });
-            }} 
-            style={{ ...inputStyle, width: '100px' }}
-          >
-            <option value="solid">Solid</option>
-            <option value="dashed">Dashed</option>
-            <option value="dotted">Dotted</option>
-          </select>
-        </div>
+        {/* Text Color */}
+        {firstObj.type === 'text' && (
+          <div style={rowStyle}>
+            <span style={{ fontSize: '0.75rem' }}>Text Color</span>
+            <input type="color" value={(firstObj as any).fill || '#000000'} onChange={(e) => handleUpdate({ fill: e.target.value })} style={{ width: '28px', height: '22px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
+          </div>
+        )}
+
+        {/* Stroke / Border Color + Width */}
+        {['rectangle', 'circle', 'line', 'image', 'arrow'].includes(firstObj.type) && (
+          <div style={rowStyle}>
+            <span style={{ fontSize: '0.75rem' }}>{['line', 'arrow'].includes(firstObj.type) ? 'Color' : 'Border'}</span>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <input type="color" value={(firstObj as any).stroke || '#000000'} onChange={(e) => handleUpdate({ stroke: e.target.value })} style={{ width: '28px', height: '22px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
+              <input type="number" min="0" max="50" value={(firstObj as any).strokeWidth || 0} onChange={(e) => handleUpdate({ strokeWidth: Number(e.target.value) })} style={{...inputStyle, width: '42px'}} />
+            </div>
+          </div>
+        )}
+
+        {/* Stroke Style — all strokeable types */}
+        {['rectangle', 'circle', 'line', 'arrow'].includes(firstObj.type) && (
+          <div style={rowStyle}>
+            <span style={{ fontSize: '0.75rem' }}>Style</span>
+            <select 
+              value={(firstObj as any).dash ? ((firstObj as any).dash[0] === 5 ? 'dotted' : 'dashed') : 'solid'} 
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'solid') handleUpdate({ dash: undefined });
+                else if (val === 'dashed') handleUpdate({ dash: [10, 10] });
+                else if (val === 'dotted') handleUpdate({ dash: [5, 5] });
+              }} 
+              style={{ ...inputStyle, width: '80px' }}
+            >
+              <option value="solid">Solid</option>
+              <option value="dashed">Dashed</option>
+              <option value="dotted">Dotted</option>
+            </select>
+          </div>
+        )}
 
         {/* Corner Radius */}
         {firstObj.type === 'rectangle' && (
           <div style={rowStyle}>
-            <span style={{ fontSize: '0.75rem' }}>Corner Radius</span>
+            <span style={{ fontSize: '0.75rem' }}>Radius</span>
             <input type="number" min="0" max="200" value={(firstObj as any).cornerRadius || 0} onChange={(e) => handleUpdate({ cornerRadius: Number(e.target.value) })} style={inputStyle} />
           </div>
         )}
