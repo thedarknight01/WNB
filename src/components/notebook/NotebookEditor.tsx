@@ -1,21 +1,22 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Mention from '@tiptap/extension-mention';
 import FontFamily from '@tiptap/extension-font-family';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
-import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
-import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import TextAlign from '@tiptap/extension-text-align';
 import { Table } from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
+import { FontSize } from './FontSize';
 import { useSettingsStore } from '../../core/store/useSettingsStore';
 import { useBoardStore } from '../../core/store/useBoardStore';
+import { useAppStore } from '../../core/store/useAppStore';
 import {
   Bold, Italic, Underline as UnderlineIcon, Heading1, Heading2, Heading3,
   List, ListOrdered, Table as TableIcon, Link as LinkIcon, Image as ImageIcon,
@@ -39,9 +40,12 @@ function loadSavedFonts(fonts: string[]) {
   });
 }
 
-export const NotebookEditor = () => {
+export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolbarSlotId: string }) => {
+  const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
   const { theme, customFonts } = useSettingsStore();
-  const { notebookContent, setNotebookContent, focusCameraOn } = useBoardStore();
+  const activeMenuTab = useAppStore(s => s.activeMenuTab);
+  const focusedTabId = useAppStore(s => s.focusedTabId);
+  const { notebookContent, setNotebookContent, focusCameraOn } = useBoardStore(s => ({ notebookContent: s.notebookContent, setNotebookContent: s.setNotebookContent, focusCameraOn: s.focusCameraOn }));
   const isDark = theme === 'dark';
 
   // ---- State for inline dropdowns ----
@@ -60,21 +64,20 @@ export const NotebookEditor = () => {
   // Load ALL saved fonts on mount (fix: fonts lost on page reload)
   useEffect(() => {
     loadSavedFonts(customFonts);
-  }, []); // runs once on mount
+  }, [customFonts]);
 
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Underline,
       // Text color
       TextStyle,
       Color,
+      FontSize,
       // Highlight (single color via picker)
       Highlight.configure({ multicolor: true }),
       // Alignment — MUST be added explicitly
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       // Links & Images
-      Link.configure({ openOnClick: false, autolink: true }),
       Image.configure({ inline: false, allowBase64: true }),
       // Tables
       Table.configure({ resizable: true }),
@@ -84,7 +87,7 @@ export const NotebookEditor = () => {
       // Mentions
       Mention.configure({
         HTMLAttributes: { class: 'mention-link' },
-        suggestion: getSuggestionConfig(),
+        suggestion: getSuggestionConfig(isDark),
         renderLabel({ node }: any) {
           return `↗ ${node.attrs.label || node.attrs.id}`;
         },
@@ -197,10 +200,7 @@ export const NotebookEditor = () => {
   const currentTextColor = editor.getAttributes('textStyle').color || (isDark ? '#f8fafc' : '#0f172a');
   const currentHighlight = editor.getAttributes('highlight').color || '#fef08a';
 
-  return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-
-      {/* ===== TOOLBAR ===== */}
+  const toolbar = (
       <div style={{
         display: 'flex', flexWrap: 'wrap', gap: '2px', padding: '6px 8px',
         backgroundColor: isDark ? '#0f172a' : '#f8fafc',
@@ -213,13 +213,13 @@ export const NotebookEditor = () => {
         <button onClick={() => editor.chain().focus().redo().run()} style={btn(false)} title="Redo"><Redo size={14} /></button>
         <div style={sep} />
 
-        {/* Font Family — shows all loaded Google fonts */}
+        {/* Font Family */}
         <select
           onChange={(e) => {
             const f = e.target.value;
             if (f) editor.chain().focus().setFontFamily(f).run();
           }}
-          value={editor.getAttributes('textStyle').fontFamily || ""}
+          value=""
           title="Font Family"
           style={{
             background: isDark ? '#1e293b' : '#fff',
@@ -231,6 +231,31 @@ export const NotebookEditor = () => {
           {customFonts.map(font => (
             <option key={font} value={font} style={{ fontFamily: font }}>{font}</option>
           ))}
+        </select>
+
+        {/* Font Size */}
+        <select
+          onChange={(e) => {
+            const size = e.target.value;
+            if (size) editor.chain().focus().setFontSize(size).run();
+          }}
+          value=""
+          title="Font Size"
+          style={{
+            background: isDark ? '#1e293b' : '#fff',
+            color: 'inherit', border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
+            borderRadius: '4px', padding: '3px 4px', fontSize: '0.75rem', outline: 'none', width: '50px',
+          }}
+        >
+          <option value="" disabled>Size</option>
+          <option value="12px">12</option>
+          <option value="14px">14</option>
+          <option value="16px">16</option>
+          <option value="18px">18</option>
+          <option value="20px">20</option>
+          <option value="24px">24</option>
+          <option value="30px">30</option>
+          <option value="36px">36</option>
         </select>
         <div style={sep} />
 
@@ -383,8 +408,20 @@ export const NotebookEditor = () => {
         </div>
 
       </div>
+  );
 
-      {/* ===== EDITOR ===== */}
+  const notebookToolbar = activeMenuTab === 'Property'
+    ? <div style={{ padding: '0 8px', color: isDark ? '#94a3b8' : '#64748b', fontSize: '0.75rem' }}>Notebook properties</div>
+    : toolbar;
+
+  useEffect(() => {
+    setToolbarTarget(focusedTabId === docId && typeof document !== 'undefined' ? document.getElementById(toolbarSlotId) : null);
+  }, [docId, focusedTabId, toolbarSlotId]);
+
+  return (
+    <>
+      {toolbarTarget ? createPortal(notebookToolbar, toolbarTarget) : null}
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div
         className="notebook-scroll"
         style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
@@ -392,6 +429,7 @@ export const NotebookEditor = () => {
       >
         <EditorContent editor={editor} />
       </div>
-    </div>
+      </div>
+    </>
   );
 };

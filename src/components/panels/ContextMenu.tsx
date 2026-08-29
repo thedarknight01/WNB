@@ -4,14 +4,21 @@ import { useSettingsStore } from '../../core/store/useSettingsStore';
 import { Tag, Group, Trash2, Check, X } from 'lucide-react';
 
 export const ContextMenu = () => {
-  const { contextMenu, setContextMenu, objectsById, objectIds, selectedIds, setObjectLabel, groupSelected, deleteSelected } = useBoardStore();
+  const contextMenu = useBoardStore(s => s.contextMenu);
+  const setContextMenu = useBoardStore(s => s.setContextMenu);
+  const objectsById = useBoardStore(s => s.objectsById);
+  const objectIds = useBoardStore(s => s.objectIds);
+  const selectedIds = useBoardStore(s => s.selectedIds);
+  const setObjectLabel = useBoardStore(s => s.setObjectLabel);
+  const groupSelected = useBoardStore(s => s.groupSelected);
+  const deleteSelected = useBoardStore(s => s.deleteSelected);
   const objects = objectIds.map(id => objectsById[id]).filter(Boolean);const { theme } = useSettingsStore();
   const [isLabeling, setIsLabeling] = useState(false);
   const [labelValue, setLabelValue] = useState('');
 
   const isDark = theme === 'dark';
 
-const currentObject = contextMenu ? objects.find(o => o.groupId === contextMenu.id || o.id === contextMenu.id) : null;
+const currentObject = contextMenu ? objects.find((o: any) => o.groupId === contextMenu.id || o.id === contextMenu.id) : null;
 
   useEffect(() => {
     const handleClick = () => setContextMenu(null);

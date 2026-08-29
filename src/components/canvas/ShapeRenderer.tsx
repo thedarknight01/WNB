@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { Line, Rect, Circle, Text, Image as KonvaImage, Group, Arrow } from 'react-konva';
 import type { BoardObject, LineData, RectangleData, CircleData, TextData, ImageData } from '../../types/objects';
-import { useBoardStore } from '../../core/store/useBoardStore';
+import { BoardContext } from '../../core/store/useBoardStore';
 const CanvasImage = ({ obj, commonProps }: { obj: ImageData, commonProps: any }) => {
   const [imgElement, setImgElement] = useState<HTMLImageElement | null>(null);
   
@@ -30,6 +30,7 @@ const getOrthogonalPoints = (pts: number[]) => {
 };
 
 export const ShapeRenderer = ({ obj, commonProps, editingTextId, setEditingText, tool }: Props) => {
+  const store = useContext(BoardContext);
   if (obj.type === 'line') {
     const line = obj as LineData;
     return <Line key={obj.id} {...commonProps} points={line.points} stroke={line.stroke} strokeWidth={line.strokeWidth} dash={line.dash} tension={line.tension} lineCap={line.lineCap} lineJoin={line.lineJoin} shadowColor={line.shadowColor} shadowBlur={line.shadowBlur} shadowOffsetX={line.shadowOffsetX} shadowOffsetY={line.shadowOffsetY} shadowOpacity={line.shadowOpacity} />;
@@ -104,7 +105,7 @@ export const ShapeRenderer = ({ obj, commonProps, editingTextId, setEditingText,
         onDblClick={(e) => { 
           e.cancelBubble = true;
           if (tool !== 'eraser'){
-            useBoardStore.getState().saveHistory(); 
+            store!.getState().saveHistory(); 
             setEditingText({ id: text.id, x: text.x, y: text.y, text: text.text }); 
           }
         }}

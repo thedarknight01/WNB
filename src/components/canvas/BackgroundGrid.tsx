@@ -2,14 +2,14 @@ import { Layer, Line, Rect } from 'react-konva';
 import { useBoardStore } from '../../core/store/useBoardStore';
 import { useSettingsStore } from '../../core/store/useSettingsStore';
 
-export const BackgroundGrid = () => {
-  const { camera } = useBoardStore();
+export const BackgroundGrid = ({ width, height }: { width?: number; height?: number } = {}) => {
+  const camera = useBoardStore(s => s.camera);
   const { gridStyle, gridColor } = useSettingsStore();
 
   if (gridStyle === 'none') return null;
 
-  const width = window.innerWidth;
-  const height = window.innerHeight;
+  const stageWidth = width ?? window.innerWidth;
+  const stageHeight = height ?? window.innerHeight;
 
   const baseGridSize = 50;
   let scaleMultiplier = 1;
@@ -20,9 +20,9 @@ export const BackgroundGrid = () => {
   const GRID_SIZE = baseGridSize * scaleMultiplier;
 
   const startX = -camera.x / camera.scale;
-  const endX = (width - camera.x) / camera.scale;
+  const endX = (stageWidth - camera.x) / camera.scale;
   const startY = -camera.y / camera.scale;
-  const endY = (height - camera.y) / camera.scale;
+  const endY = (stageHeight - camera.y) / camera.scale;
 
   const gridStartX = Math.floor(startX / GRID_SIZE) * GRID_SIZE;
   const gridStartY = Math.floor(startY / GRID_SIZE) * GRID_SIZE;

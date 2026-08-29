@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useBoardStore } from './useBoardStore';
+import { getActiveStore } from './useAppStore';
 
 // Define the shortcuts we want to allow users to change
 interface Keybindings {
@@ -80,7 +80,7 @@ export const useSettingsStore = create<SettingsState>()(
           document.head.appendChild(link);
           try {
             await document.fonts.load(`16px "${fontFamily}"`);
-            useBoardStore.getState().showToast(`Font "${fontFamily}" installed!`);
+            getActiveStore()?.getState().showToast(`Font "${fontFamily}" installed!`);
           } catch (e) { console.error("Font loading error", e); }
         }
       },

@@ -2,36 +2,48 @@ import { ReactRenderer } from '@tiptap/react';
 import tippy from 'tippy.js';
 import type { Instance } from 'tippy.js';
 import { MentionList } from './MentionList';
-import { useBoardStore } from '../../core/store/useBoardStore';
+import { getActiveStore } from '../../core/store/useAppStore';
 
-export const getSuggestionConfig = () => ({
-  char: '@', // Trigger the menu when you type "@"
+export const getSuggestionConfig = (isDark: boolean) => ({
+  char: '/',
   
-  // 1. Fetch labels from your whiteboard
   items: ({ query }: { query: string }) => {
-    const state = useBoardStore.getState();
-    const objects = state.objectIds.map(id => state.objectsById[id]).filter(Boolean);
-    
-    // Get all objects that have a label, and format them for the menu
-    const labeledObjects = objects
-      .filter(obj => obj.label && obj.label.toLowerCase().includes(query.toLowerCase()))  
-      .map(obj => ({ id: obj.parentId || obj.id, label: obj.label as string }));
-
-      
-    // Remove duplicate group labels (so groups don't show up 5 times)
-    const uniqueLabels = Array.from(new Map(labeledObjects.map(item => [item.label, item])).values());
-    
-    return uniqueLabels.slice(0, 5); // Return top 5 matches
+    return [
+      { title: 'Heading 1', command: ({ editor, range }: any) => { editor.chain().focus().deleteRange(range).setNode('heading', { level: 1 }).run() } },
+      { title: 'Heading 2', command: ({ editor, range }: any) => { editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run() } },
+      { title: 'Heading 3', command: ({ editor, range }: any) => { editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run() } },
+      { title: 'Bullet List', command: ({ editor, range }: any) => { editor.chain().focus().deleteRange(range).toggleBulletList().run() } },
+      { title: 'Numbered List', command: ({ editor, range }: any) => { editor.chain().focus().deleteRange(range).toggleOrderedList().run() } },
+      { title: 'Blockquote', command: ({ editor, range }: any) => { editor.chain().focus().deleteRange(range).toggleBlockquote().run() } },
+      { title: 'Code Block', command: ({ editor, range }: any) => { editor.chain().focus().deleteRange(range).toggleCodeBlock().run() } },
+      { title: 'Divider', command: ({ editor, range }: any) => { editor.chain().focus().deleteRange(range).setHorizontalRule().run() } },
+      { title: 'Embed Diagram', command: ({ editor, range }: any) => {
+        const store = getActiveStore();
+        if (!store) return;
+        const state = store.getState();
+        const ids = state.selectedIds;
+        if (ids.length === 0) return;
+        
+        let html = '';
+        ids.forEach((id: string) => {
+          const obj = state.objectsById[id];
+          if (obj && obj.type === 'image') html += `<img src="${(obj as any).src}" style="max-width:100%; border-radius: 8px;" />`;
+        });
+        
+        if (html) {
+          editor.chain().focus().deleteRange(range).insertContent(html).run();
+        }
+      } }
+    ].filter(item => item.title.toLowerCase().startsWith(query.toLowerCase())).slice(0, 5);
   },
 
-  // 2. Render the floating menu using Tippy.js
   render: () => {
     let component: ReactRenderer;
     let popup: Instance[];
 
     return {
       onStart: (props: any) => {
-        component = new ReactRenderer(MentionList, { props, editor: props.editor });
+        component = new ReactRenderer(MentionList, { props: { ...props, isDark }, editor: props.editor });
         if (!props.clientRect) return;
 
         popup = tippy('body', {

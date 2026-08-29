@@ -1,27 +1,39 @@
-import { useState, useEffect } from 'react';
-import { InfiniteCanvas } from './components/canvas/InfiniteCanvas';
-import {TopRibbon} from './components/panels/TopRibbon';
-import { NotebookPanel } from './components/notebook/NotebookPanel';
+import { useEffect, useState } from 'react';
 import { useSettingsStore } from './core/store/useSettingsStore';
-import { useBoardStore } from './core/store/useBoardStore';
+import { getActiveStore, useAppStore } from './core/store/useAppStore';
+import { BoardContext } from './core/store/useBoardStore';
 import { SettingsDashboard } from './components/panels/SettingsDashboard';
-import { PropertiesPanel } from './components/panels/PropertiesPanel';
+import { TabBar } from './components/layout/TabBar';
+import { DocumentProvider } from './components/layout/DocumentProvider';
+import { GlobalMenu } from './components/panels/GlobalMenu';
+import { ContextualToolbar } from './components/panels/ContextualToolbar';
+import { Trash2 } from 'lucide-react';
 
 function App() {
-  const { viewMode, theme } = useSettingsStore();
-  const { selectedIds } = useBoardStore();
+  const { theme } = useSettingsStore();
+  const { loadDocuments, activeTabId, splitTabId, isSplitViewOpen, documents } = useAppStore();
+  const [, refreshFocusedStore] = useState(0);
+  const focusedStore = getActiveStore();
   const isDark = theme === 'dark';
-  
-  const [notebookWidth, setNotebookWidth] = useState(400); 
+
   const [isResizing, setIsResizing] = useState(false);
-  
+  const [splitRatio, setSplitRatio] = useState(50); // percentage
+
+  useEffect(() => {
+    loadDocuments();
+  }, [loadDocuments]);
+
+  useEffect(() => {
+    const handleStoreReady = () => refreshFocusedStore(value => value + 1);
+    window.addEventListener('board-store-ready', handleStoreReady);
+    return () => window.removeEventListener('board-store-ready', handleStoreReady);
+  }, []);
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing || viewMode !== 'split') return;
-      const newWidth = window.innerWidth - e.clientX;
-      if (newWidth > 250 && newWidth < Math.min(800, window.innerWidth - 200)) {
-        setNotebookWidth(newWidth);
-      }
+      if (!isResizing || !splitTabId) return;
+      const newRatio = (e.clientX / window.innerWidth) * 100;
+      if (newRatio > 20 && newRatio < 80) setSplitRatio(newRatio);
     };
     
     const handleMouseUp = () => setIsResizing(false);
@@ -35,67 +47,148 @@ function App() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizing, viewMode]);
+  }, [isResizing, splitTabId]);
 
   return (
-    <>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', margin: 0, overflow: 'hidden' }}>
       <SettingsDashboard />
+      <GlobalMenu />
+      {focusedStore && (
+        <BoardContext.Provider value={focusedStore}>
+          <ContextualToolbar toolbarSlotId="notebook-toolbar-slot" />
+        </BoardContext.Provider>
+      )}
       <div 
         onContextMenu={(e) => e.preventDefault()}
         style={{ 
-        display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', margin: 0, overflow: 'hidden',
-        cursor: isResizing ? 'col-resize' : 'default', backgroundColor: isDark ? '#0f172a' : '#f8fafc' 
+        display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden',
+        cursor: isResizing ? 'col-resize' : 'default', backgroundColor: isDark ? '#1e293b' : '#ffffff' 
       }}>
-        <div style={{ 
-          display: 'flex', flex: 1, margin: 0, overflow: 'hidden',
-          cursor: isResizing ? 'col-resize' : 'default', backgroundColor: isDark ? '#0f172a' : '#f8fafc' 
+        
+        {/* LEFT PANE */}
+        <div 
+          onMouseDownCapture={() => useAppStore.getState().setFocusedTab(activeTabId)}
+          style={{ 
+          display: 'flex', flexDirection: 'column', 
+          width: isSplitViewOpen ? `calc(${splitRatio}% - 2px)` : '100%',
+          flexShrink: 0,
+          pointerEvents: isResizing ? 'none' : 'auto', overflow: 'hidden'
         }}>
-          
-          {/* LEFT PANEL: Canvas (Hidden if mode is Notebook Only) */}
-          {viewMode !== 'notebook' && (
-            <div style={{ 
-              display: 'flex', flexDirection: 'column',
-              flex: viewMode === 'canvas' ? 1 : undefined,
-              width: viewMode === 'split' ? `calc(100vw - ${notebookWidth}px)` : '100%',
-              position: 'relative', pointerEvents: isResizing ? 'none' : 'auto', minWidth: 0, overflow: 'hidden' 
+          <TabBar pane="main" />
+          {activeTabId ? (
+            <DocumentProvider docId={activeTabId} key={`pane1-${activeTabId}`} />
+          ) : (
+            <div style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: isDark ? '#0a0f1e' : '#f8fafc',
+              flexDirection: 'column', gap: '24px'
             }}>
-              <TopRibbon />
-              <InfiniteCanvas />
+              <img src="/logo.png" alt="Logo" style={{ width: 64, height: 64, borderRadius: 16, boxShadow: '0 16px 40px rgba(59,130,246,0.2)' }} />
+              <div style={{ textAlign: 'center' }}>
+                <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, color: isDark ? '#f1f5f9' : '#0f172a' }}>Welcome to WBN</h2>
+                <p style={{ margin: '8px 0 0', color: isDark ? '#64748b' : '#94a3b8', fontSize: '0.9rem' }}>Create a new document or open a recent file</p>
+              </div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                {[
+                  { type: 'whiteboard' as const, label: 'New Whiteboard', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+                  { type: 'notebook' as const, label: 'New Notebook', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+                ].map(({ type, label, color, bg }) => (
+                  <button
+                    key={type}
+                    onClick={() => { useAppStore.getState().createDocument(type).then(id => useAppStore.getState().openTab(id)); }}
+                    style={{
+                      padding: '12px 24px', borderRadius: '12px', border: `1px solid ${color}40`,
+                      background: bg, color, cursor: 'pointer',
+                      fontSize: '0.88rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {documents.length > 0 && (
+                <div style={{ marginTop: '24px', width: '100%', maxWidth: '400px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <h3 style={{ fontSize: '0.9rem', color: isDark ? '#94a3b8' : '#64748b', margin: 0 }}>Recent Files</h3>
+                    <button onClick={() => { if (confirm('Clear all recent files?')) { documents.forEach(d => useAppStore.getState().deleteDoc(d.id)); } }} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Trash2 size={12} /> Clear All
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto', paddingRight: '8px' }}>
+                    {documents.map(doc => (
+                      <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: isDark ? '#1e293b' : '#ffffff', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '8px' }}>
+                        <button onClick={() => useAppStore.getState().openTab(doc.id)} style={{ flex: 1, textAlign: 'left', background: 'transparent', border: 'none', color: isDark ? '#f1f5f9' : '#0f172a', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {doc.type === 'whiteboard' ? '🎨' : '📝'} {doc.title}
+                        </button>
+                        <button onClick={() => useAppStore.getState().deleteDoc(doc.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }} title="Delete File">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
-
-          {/* RESIZE HANDLE */}
-          {viewMode === 'split' && (
-            <div 
-              onMouseDown={(e) => { e.preventDefault(); setIsResizing(true); }}
-              style={{
-                width: '6px', backgroundColor: isResizing ? '#3b82f6' : (isDark ? '#334155' : '#e2e8f0'),
-                cursor: 'col-resize', transition: 'background-color 0.2s ease', zIndex: 50,
-              }} 
-            />
-          )}
-
-          {/* RIGHT PANEL: Notebook (Hidden if mode is Canvas Only) */}
-          {viewMode !== 'canvas' && (
-            <div style={{ 
-              width: viewMode === 'notebook' ? '100%' : `${notebookWidth}px`, 
-              flexShrink: 0, pointerEvents: isResizing ? 'none' : 'auto',
-              boxShadow: isDark ? '-4px 0 15px rgba(0,0,0,0.2)' : '-4px 0 15px rgba(0,0,0,0.05)'
-            }}>
-              <NotebookPanel />
-            </div>
-          )}
-
-          {/* PROPERTIES PANEL (Shown when an object is selected) */}
-          {selectedIds.length > 0 && viewMode !== 'notebook' && (
-            <div className="properties-panel-enter">
-              <PropertiesPanel />
-            </div>
-          )}
-          
         </div>
+
+        {/* RESIZE HANDLE */}
+        {isSplitViewOpen && (
+          <div 
+            onMouseDown={(e) => { e.preventDefault(); setIsResizing(true); }}
+            style={{
+              width: '4px', backgroundColor: isResizing ? '#3b82f6' : (isDark ? '#334155' : '#e2e8f0'),
+              cursor: 'col-resize', transition: 'background-color 0.2s ease', zIndex: 50,
+              flexShrink: 0
+            }} 
+          />
+        )}
+
+        {/* RIGHT PANE */}
+        {isSplitViewOpen && (
+          <div 
+            onMouseDownCapture={() => useAppStore.getState().setFocusedTab(splitTabId)}
+            style={{ 
+            display: 'flex', flexDirection: 'column', 
+            flex: 1, minWidth: 0,
+            pointerEvents: isResizing ? 'none' : 'auto', overflow: 'hidden',
+            borderLeft: isDark ? '1px solid #0f172a' : '1px solid #cbd5e1'
+          }}>
+            <TabBar pane="split" />
+            {splitTabId ? (
+              <DocumentProvider docId={splitTabId} key={`pane2-${splitTabId}`} />
+            ) : (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: isDark ? '#0a0f1e' : '#f8fafc', padding: '24px' }}>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600, color: isDark ? '#f1f5f9' : '#0f172a' }}>Select Document</h3>
+                <p style={{ margin: '8px 0 24px', color: isDark ? '#64748b' : '#94a3b8', fontSize: '0.9rem' }}>Choose an open document or create a new one to split</p>
+                
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '32px' }}>
+                    <button onClick={() => useAppStore.getState().createDocument('whiteboard').then(id => useAppStore.getState().openTab(id, true))} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #3b82f640', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', cursor: 'pointer', fontSize: '0.85rem' }}>+ New Whiteboard</button>
+                    <button onClick={() => useAppStore.getState().createDocument('notebook').then(id => useAppStore.getState().openTab(id, true))} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #f59e0b40', background: 'rgba(245,158,11,0.1)', color: '#f59e0b', cursor: 'pointer', fontSize: '0.85rem' }}>+ New Notebook</button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '300px' }}>
+                  {documents.filter(d => d.id !== activeTabId && !d.title.match(/^(Notebook|Whiteboard) \d+$/)).map(doc => (
+                    <button key={doc.id} onClick={() => {
+                        const state = useAppStore.getState();
+                        if (state.tabs.includes(doc.id)) {
+                          state.moveToSplit(doc.id);
+                        } else {
+                          state.openTab(doc.id, true);
+                        }
+                    }} style={{ textAlign: 'left', padding: '10px 16px', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, background: 'transparent', color: isDark ? '#f8fafc' : '#0f172a', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {doc.type === 'whiteboard' ? '🎨' : '📝'} {doc.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-    </>
+    </div>
   );
 }
 

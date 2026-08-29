@@ -1,4 +1,5 @@
-import { useBoardStore } from '../../core/store/useBoardStore';
+import { useContext } from 'react';
+import { useBoardStore, BoardContext } from '../../core/store/useBoardStore';
 import { useSettingsStore } from '../../core/store/useSettingsStore';
 import { 
   AlignLeft, AlignCenter, AlignRight, AlignJustify, 
@@ -10,8 +11,18 @@ import {
 } from 'lucide-react';
 
 export const PropertiesPanel = () => {
-  const { objectsById, selectedIds, updateObject, bringToFront, sendToBack, groupSelected, ungroupSelected } = useBoardStore();
-  const { customFonts, theme } = useSettingsStore();
+  const { theme, customFonts } = useSettingsStore();
+  const store = useContext(BoardContext);
+  if (!store) return null;
+  const { objectsById, selectedIds, updateObject, bringToFront, sendToBack, groupSelected, ungroupSelected } = useBoardStore(state => ({
+    objectsById: state.objectsById,
+    selectedIds: state.selectedIds,
+    updateObject: state.updateObject,
+    bringToFront: state.bringToFront,
+    sendToBack: state.sendToBack,
+    groupSelected: state.groupSelected,
+    ungroupSelected: state.ungroupSelected
+  }));
   const isDark = theme === 'dark';
 
   if (selectedIds.length === 0) return null;
@@ -19,7 +30,7 @@ export const PropertiesPanel = () => {
   if (!firstObj) return null;
 
   const handleUpdate = (updates: any) => {
-    useBoardStore.getState().saveHistory();
+    store.getState().saveHistory();
     selectedIds.forEach(id => updateObject(id, updates));
   };
 
@@ -154,7 +165,7 @@ export const PropertiesPanel = () => {
               {firstObj.locked ? <Lock size={14}/> : <Unlock size={14}/>} 
               {firstObj.locked ? 'Unlock' : 'Lock'}
            </button>
-           <button onClick={() => useBoardStore.getState().duplicateSelected()} style={{ ...inputStyle, width: '48%', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
+           <button onClick={() => store!.getState().duplicateSelected()} style={{ ...inputStyle, width: '48%', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
               <Copy size={14}/> Duplicate
            </button>
         </div>

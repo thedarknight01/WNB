@@ -1,24 +1,27 @@
-import { useState } from 'react';
-import { useBoardStore} from '../../core/store/useBoardStore';
+import { useState, useContext,  } from 'react';
+import { useBoardStore, BoardContext } from '../../core/store/useBoardStore';
 import type {Tool} from '../../core/store/useBoardStore';
 import { useSettingsStore } from '../../core/store/useSettingsStore';
+import { useAppStore } from '../../core/store/useAppStore';
+import { PropertiesToolbar } from './PropertiesToolbar';
 import { 
   MousePointer2, Hand, Pen, Square, Circle as CircleIcon, Type, Eraser, 
-  Undo, Redo, Trash2, Settings, FilePlus, Save, FolderOpen, Download,
-  Table, Image as ImageIcon, Sigma, Hash, Link, Video, Layout
+  Undo, Redo, Trash2,  FilePlus, Save, FolderOpen, Download,
+  Table, Image as ImageIcon, Sigma, Hash, Link, Video
 } from 'lucide-react';
 
+
+
 const symbolCategories = {
-  Math: ['∑', '∏', '∫', '∂', '∞', '√', '±', '≈', '≠', '≤', '≥', '∈', '∉', '⊂', '⊃', '∪', '∩', '∧', '∨', '∀', '∃'],
-  Greek: ['α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'π', 'ρ', 'σ', 'τ', 'υ', 'φ', 'χ', 'ψ', 'ω', 'Γ', 'Δ', 'Θ', 'Λ', 'Ξ', 'Π', 'Σ', 'Φ', 'Ψ', 'Ω'],
-  Arrows: ['←', '→', '↑', '↓', '↔', '⇐', '⇒', '⇑', '⇓', '⇔'],
-  Shapes: ['★', '☆', '♠', '♣', '♥', '♦', '●', '○', '■', '□', '▲', '△', '▼', '▽', '◆', '◇'],
-  Emoji: ['✓', '✗', '✦', '✧', '☀', '☁', '☂', '⚡', '☎', '✉', '✂', '✈', '⚓', '⚠', '♻', '⭐']
+  Math: ['±', '×', '÷', '≈', '≠', '≤', '≥', '∞', '∫', '∑', '∏', '√', '∝', '∠', '°', '△', '∇', '∂', '∅', 'µ', 'π'],
+  Greek: ['Α', 'Β', 'Γ', 'Δ', 'Ε', 'Ζ', 'Η', 'Θ', 'Ι', 'Κ', 'Λ', 'Μ', 'Ν', 'Ξ', 'Ο', 'Π', 'Ρ', 'Σ', 'Τ', 'Υ', 'Φ', 'Χ', 'Ψ', 'Ω', 'α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'ο', 'π', 'ρ', 'σ', 'τ', 'υ', 'φ', 'χ', 'ψ', 'ω'],
+  Arrows: ['←', '↑', '→', '↓', '↔', '↕', '↖', '↗', '↘', '↙'],
+  Shapes: ['○', '□', '△', '▽', '◁', '▷', '◇', '○', '◎', '●', '◐', '◑', '☆', '★', '☎', '☏'],
+  Emoji: ['😀', '😂', '🥰', '😎', '🤔', '😭', '🤯', '👍', '👎', '👏', '🙌', '🎉', '🔥', '💡', '✅', '❌']
 };
 
-export const TopRibbon = () => {
-  const [activeTab, setActiveTab] = useState<'File' | 'Home' | 'Insert' | 'Format'>('Home');
-  const [isLayoutOpen, setIsLayoutOpen] = useState(false);
+export const ContextualToolbar = ({ toolbarSlotId }: { toolbarSlotId: string }) => {
+  const activeMenuTab = useAppStore(s => s.activeMenuTab);
   const [showArrowMenu, setShowArrowMenu] = useState(false);
   const [showSymbolPicker, setShowSymbolPicker] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
@@ -30,12 +33,16 @@ export const TopRibbon = () => {
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [showPdfAlert, setShowPdfAlert] = useState(false);
-  const {
-    tool, setTool, isToolLocked,
-    undo, redo, clearBoard
-  } = useBoardStore();
-  const { theme, toggleSettings } = useSettingsStore();
-
+  const store = useContext(BoardContext);
+  const docType = useBoardStore(s => s.docType);
+  const tool = useBoardStore(s => s.tool);
+  const setTool = useBoardStore(s => s.setTool);
+  const isToolLocked = useBoardStore(s => s.isToolLocked);
+  const selectedIds = useBoardStore(s => s.selectedIds);
+  const undo = useBoardStore(s => s.undo);
+  const redo = useBoardStore(s => s.redo);
+  const clearBoard = useBoardStore(s => s.clearBoard);
+  const { theme } = useSettingsStore();
   const isDark = theme === 'dark';
 
   const handleToolClick = (t: Tool) => setTool(t, false);
@@ -53,7 +60,7 @@ export const TopRibbon = () => {
         if (ev.target?.result) {
           // Pass the file content to loadProject. If it's a blob/arraybuffer, we might need text.
           // In useBoardStore it decrypts string.
-          useBoardStore.getState().loadProject(ev.target.result as string);
+          store!.getState().loadProject(ev.target.result as string);
         }
       };
       reader.readAsText(file);
@@ -76,10 +83,10 @@ export const TopRibbon = () => {
           img.src = dataUrl;
           img.onload = () => {
             const now = Date.now();
-            const { camera } = useBoardStore.getState();
-            useBoardStore.getState().addObject({
+            const { camera } = store!.getState();
+            store!.getState().addObject({
               id: `img-${now}`, name: 'image', type: 'image',
-              zIndex: useBoardStore.getState().objectIds.length,
+              zIndex: store!.getState().objectIds.length,
               x: -camera.x / camera.scale + 100, y: -camera.y / camera.scale + 100,
               rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, visible: true, locked: false, draggable: true,
               createdAt: now, updatedAt: now,
@@ -102,10 +109,10 @@ export const TopRibbon = () => {
   const confirmInsertLink = () => {
     if (!linkUrl) return;
     const now = Date.now();
-    const { camera } = useBoardStore.getState();
-    useBoardStore.getState().addObject({
+    const { camera } = store!.getState();
+    store!.getState().addObject({
       id: `link-${now}`, name: 'link', type: 'text',
-      zIndex: useBoardStore.getState().objectIds.length,
+      zIndex: store!.getState().objectIds.length,
       x: -camera.x / camera.scale + 100, y: -camera.y / camera.scale + 100,
       rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, visible: true, locked: false, draggable: true,
       createdAt: now, updatedAt: now,
@@ -140,11 +147,11 @@ export const TopRibbon = () => {
 
   const insertTable = (rows: number, cols: number) => {
     const now = Date.now();
-    const { camera } = useBoardStore.getState();
+    const { camera } = store!.getState();
     const extraData = { rows, cols, data: Array(rows).fill(0).map(() => Array(cols).fill('')) };
-    useBoardStore.getState().addObject({
+    store!.getState().addObject({
       id: `table-${now}`, name: 'table', type: 'table',
-      zIndex: useBoardStore.getState().objectIds.length,
+      zIndex: store!.getState().objectIds.length,
       x: -camera.x / camera.scale + 100, y: -camera.y / camera.scale + 100,
       rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, visible: true, locked: false, draggable: true,
       createdAt: now, updatedAt: now,
@@ -156,10 +163,10 @@ export const TopRibbon = () => {
 
   const insertVideo = (src: string) => {
     const now = Date.now();
-    const { camera } = useBoardStore.getState();
-    useBoardStore.getState().addObject({
+    const { camera } = store!.getState();
+    store!.getState().addObject({
       id: `video-${now}`, name: 'video', type: 'video',
-      zIndex: useBoardStore.getState().objectIds.length,
+      zIndex: store!.getState().objectIds.length,
       x: -camera.x / camera.scale + 100, y: -camera.y / camera.scale + 100,
       rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, visible: true, locked: false, draggable: true,
       createdAt: now, updatedAt: now,
@@ -193,10 +200,10 @@ export const TopRibbon = () => {
   const confirmInsertEquation = () => {
     if (!equationLatex) return;
     const now = Date.now();
-    const { camera } = useBoardStore.getState();
-    useBoardStore.getState().addObject({
+    const { camera } = store!.getState();
+    store!.getState().addObject({
       id: `equation-${now}`, name: 'equation', type: 'equation',
-      zIndex: useBoardStore.getState().objectIds.length,
+      zIndex: store!.getState().objectIds.length,
       x: -camera.x / camera.scale + 100, y: -camera.y / camera.scale + 100,
       rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, visible: true, locked: false, draggable: true,
       createdAt: now, updatedAt: now,
@@ -214,78 +221,57 @@ export const TopRibbon = () => {
     color: isDark ? '#f8fafc' : '#0f172a', zIndex: 100,
   };
   
-  const tabContainerStyle = { display: 'flex', padding: '4px 16px 0 16px', gap: '16px', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #e2e8f0' };
-  const tabStyle = (isActive: boolean) => ({
-    padding: '8px 16px', cursor: 'pointer', background: 'transparent', border: 'none',
-    color: isActive ? '#3b82f6' : (isDark ? '#94a3b8' : '#64748b'),
-    borderBottom: isActive ? '2px solid #3b82f6' : '2px solid transparent',
-    fontWeight: isActive ? 600 : 500, fontSize: '0.875rem'
-  });
-
-  const toolbarStyle = { display: 'flex', alignItems: 'center', gap: '16px', padding: '8px 16px', minHeight: '56px' };
+  const toolbarStyle = { display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 16px', minHeight: '44px' };
   const toolBtn = (isActive: boolean, isLocked: boolean = false) => ({
     display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center',
-    padding: '6px 12px', background: isActive ? (isDark ? '#1e293b' : '#eff6ff') : 'transparent',
+    padding: '4px 8px', background: isActive ? (isDark ? '#1e293b' : '#eff6ff') : 'transparent',
     color: isActive ? '#3b82f6' : 'inherit', border: isLocked ? '1px solid #3b82f6' : '1px solid transparent',
-    borderRadius: '6px', cursor: 'pointer', gap: '4px', fontSize: '0.75rem',
+    borderRadius: '4px', cursor: 'pointer', gap: '2px', fontSize: '0.7rem',
     boxShadow: isLocked ? '0 0 12px rgba(59, 130, 246, 0.8), inset 0 0 4px rgba(59, 130, 246, 0.4)' : 'none', 
     transition: 'all 0.2s'
   });
 
-  const divider = { width: '1px', height: '32px', backgroundColor: isDark ? '#334155' : '#e2e8f0' };
+  const divider = { width: '1px', height: '20px', backgroundColor: isDark ? '#334155' : '#e2e8f0' };
+
+  if (docType === 'notebook') {
+    return (
+      <div style={ribbonStyle}>
+        <div id={toolbarSlotId} style={{ display: 'flex', alignItems: 'center', width: '100%', minHeight: '44px' }} />
+      </div>
+    );
+  }
+
+  if (selectedIds.length > 0 || activeMenuTab === 'Property') {
+    return (
+      <div style={{ ...ribbonStyle, padding: '4px 16px', minHeight: '52px', justifyContent: 'center' }}>
+        <PropertiesToolbar />
+      </div>
+    );
+  }
 
   return (
     <div style={ribbonStyle}>
-      {/* TABS */}
-      <div style={tabContainerStyle}>
-        <button style={tabStyle(activeTab === 'File')} onClick={() => setActiveTab('File')}>File</button>
-        <button style={tabStyle(activeTab === 'Home')} onClick={() => setActiveTab('Home')}>Home</button>
-        <button style={tabStyle(activeTab === 'Insert')} onClick={() => setActiveTab('Insert')}>Insert</button>
-        
-        {/* LAYOUT SWITCHER DROPDOWN */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', position: 'relative' }}>
-          <button 
-            onClick={() => setIsLayoutOpen(!isLayoutOpen)} 
-            style={{ ...toolBtn(isLayoutOpen), padding: '4px 8px', flexDirection: 'row' }}
-          >
-            <Layout size={16} /> View
-          </button>
-          
-          {isLayoutOpen && (
-            <div style={{
-              position: 'absolute', top: '100%', right: 0, marginTop: '4px',
-              background: isDark ? '#1e293b' : '#ffffff',
-              border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
-              borderRadius: '8px', padding: '4px', display: 'flex', flexDirection: 'column',
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', zIndex: 1000
-            }}>
-              <button onClick={() => { useSettingsStore.getState().setViewMode('canvas'); setIsLayoutOpen(false); }} style={{ ...toolBtn(useSettingsStore.getState().viewMode === 'canvas'), flexDirection: 'row', justifyContent: 'flex-start' }}>Canvas</button>
-              <button onClick={() => { useSettingsStore.getState().setViewMode('split'); setIsLayoutOpen(false); }} style={{ ...toolBtn(useSettingsStore.getState().viewMode === 'split'), flexDirection: 'row', justifyContent: 'flex-start' }}>Split</button>
-              <button onClick={() => { useSettingsStore.getState().setViewMode('notebook'); setIsLayoutOpen(false); }} style={{ ...toolBtn(useSettingsStore.getState().viewMode === 'notebook'), flexDirection: 'row', justifyContent: 'flex-start' }}>Notebook</button>
-            </div>
-          )}
-
-          <div style={divider} />
-          <button onClick={toggleSettings} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer' }}><Settings size={18} /></button>
-        </div>
-      </div>
-
-      {/* CONTENT PANELS */}
       <div style={toolbarStyle}>
         
-        {activeTab === 'File' && (
+        {activeMenuTab === 'File' && (
           <>
-            <button onClick={() => { if(window.confirm('Clear board?')) clearBoard(); }} style={toolBtn(false)}><FilePlus size={18} />New</button>
-            <button onClick={() => useBoardStore.getState().saveProject()} style={toolBtn(false)}><Save size={18} />Save</button>
-            <button onClick={handleImportProject} style={toolBtn(false)}><FolderOpen size={18} />Import / Open</button>
+            <button onClick={() => { 
+                const appStore = useAppStore.getState();
+                appStore.createDocument('whiteboard').then(id => {
+                  const inSplit = appStore.splitTabId === store!.getState().docId;
+                  appStore.openTab(id, inSplit);
+                });
+              }} style={toolBtn(false)}><FilePlus size={16} />New</button>
+            <button onClick={() => store!.getState().saveProject()} style={toolBtn(false)}><Save size={16} />Save</button>
+            <button onClick={handleImportProject} style={toolBtn(false)}><FolderOpen size={16} />Import / Open</button>
             <div style={divider} />
-            <button onClick={() => useBoardStore.getState().saveProject()} style={toolBtn(false)}><Save size={18} />Save As...</button>
+            <button onClick={() => store!.getState().saveProject()} style={toolBtn(false)}><Save size={18} />Save As...</button>
             <button onClick={() => window.dispatchEvent(new Event('export-canvas-image'))} style={toolBtn(false)}><Download size={18} />Export Image</button>
             <button onClick={() => setShowPdfAlert(true)} style={toolBtn(false)}><Download size={18} />Export PDF</button>
           </>
         )}
         
-        {activeTab === 'Home' && (
+        {activeMenuTab === 'Home' && (
           <>
             <div style={{ display: 'flex', gap: '4px' }}>
               <button onClick={undo} style={toolBtn(false, false)}><Undo size={18} />Undo</button>
@@ -301,7 +287,7 @@ export const TopRibbon = () => {
           </>
         )}
 
-        {activeTab === 'Insert' && (
+        {activeMenuTab === 'Insert' && (
           <>
             <div style={{ display: 'flex', gap: '4px' }}>
               <button onClick={() => handleToolClick('pen')} onDoubleClick={() => handleToolDoubleClick('pen')} style={toolBtn(tool === 'pen', tool === 'pen' && isToolLocked)}><Pen size={18} />Pen</button>
@@ -320,8 +306,8 @@ export const TopRibbon = () => {
                     borderRadius: '8px', padding: '4px', display: 'flex', flexDirection: 'column',
                     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', zIndex: 1000
                   }}>
-                    <button onClick={() => { handleToolClick('arrow'); useBoardStore.getState().setDefaultArrowType('straight'); setShowArrowMenu(false); }} style={{ ...toolBtn(useBoardStore.getState().defaultArrowType === 'straight'), flexDirection: 'row', justifyContent: 'flex-start', minWidth: '120px' }}>Straight</button>
-                    <button onClick={() => { handleToolClick('arrow'); useBoardStore.getState().setDefaultArrowType('orthogonal'); setShowArrowMenu(false); }} style={{ ...toolBtn(useBoardStore.getState().defaultArrowType === 'orthogonal'), flexDirection: 'row', justifyContent: 'flex-start', minWidth: '120px' }}>Orthogonal</button>
+                    <button onClick={() => { handleToolClick('arrow'); store!.getState().setDefaultArrowType('straight'); setShowArrowMenu(false); }} style={{ ...toolBtn(store!.getState().defaultArrowType === 'straight'), flexDirection: 'row', justifyContent: 'flex-start', minWidth: '120px' }}>Straight</button>
+                    <button onClick={() => { handleToolClick('arrow'); store!.getState().setDefaultArrowType('orthogonal'); setShowArrowMenu(false); }} style={{ ...toolBtn(store!.getState().defaultArrowType === 'orthogonal'), flexDirection: 'row', justifyContent: 'flex-start', minWidth: '120px' }}>Orthogonal</button>
                   </div>
                 )}
               </div>
@@ -373,10 +359,10 @@ export const TopRibbon = () => {
                       key={sym}
                       onClick={() => {
                         const now = Date.now();
-                        const { camera } = useBoardStore.getState();
-                        useBoardStore.getState().addObject({
+                        const { camera } = store!.getState();
+                        store!.getState().addObject({
                           id: `sym-${now}`, name: 'symbol', type: 'text',
-                          zIndex: useBoardStore.getState().objectIds.length,
+                          zIndex: store!.getState().objectIds.length,
                           x: -camera.x / camera.scale + 100, y: -camera.y / camera.scale + 100,
                           rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, visible: true, locked: false, draggable: true,
                           createdAt: now, updatedAt: now,

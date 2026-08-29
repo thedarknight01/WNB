@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useSettingsStore } from '../../core/store/useSettingsStore';
-import { useBoardStore } from '../../core/store/useBoardStore';
+import { getActiveStore } from '../../core/store/useAppStore';
 import {
-  X, Palette, Grid, Type, Keyboard, Database
+  X, Palette, Grid, Type, Keyboard, Database, Info, Shield
 } from 'lucide-react';
 
-type Tab = 'appearance' | 'canvas' | 'labels' | 'shortcuts' | 'data';
+type Tab = 'appearance' | 'canvas' | 'labels' | 'shortcuts' | 'data' | 'about' | 'policies';
 
 export const SettingsDashboard = () => {
   const [activeTab, setActiveTab] = useState<Tab>('appearance');
@@ -15,7 +15,7 @@ export const SettingsDashboard = () => {
 
   const {
     isSettingsOpen, toggleSettings, theme, setTheme,
-    viewMode, setViewMode, gridStyle, setGridStyle,
+    gridStyle, setGridStyle,
     gridColor, setGridColor, backgroundColor, setBackgroundColor,
     labelFontFamily, labelFontSize, updateLabelSettings, customFonts, addCustomFont, removeCustomFont,
     keybindings, updateKeybinding,
@@ -33,7 +33,8 @@ export const SettingsDashboard = () => {
     window.addEventListener('keydown', listener);
   };
 
-  const { clearBoard, saveProject, showToast } = useBoardStore();
+  // Only enable save/clear if there is an active store
+  const activeStore = getActiveStore();
 
   const isDark = theme === 'dark';
 
@@ -41,7 +42,7 @@ export const SettingsDashboard = () => {
 
   const handleClearAutosave = () => {
     localStorage.removeItem('visual_board_autosave');
-    showToast("Autosave cache cleared!");
+    activeStore?.getState().showToast("Autosave cache cleared!");
   };
 
   const tabs = [
@@ -50,6 +51,8 @@ export const SettingsDashboard = () => {
     { id: 'labels', label: 'Diagram Labels', icon: Type },
     { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
     { id: 'data', label: 'Data & Storage', icon: Database },
+    { id: 'about', label: 'About', icon: Info },
+    { id: 'policies', label: 'Policies', icon: Shield },
   ];
 
   // Common Styles
@@ -115,20 +118,12 @@ export const SettingsDashboard = () => {
                   <>
                     <p style={{ fontSize: '0.85rem', color: isDark ? '#94a3b8' : '#64748b', marginBottom: '8px', marginLeft: '12px', textTransform: 'uppercase' }}>Theme & Layout</p>
                     <div style={card}>
-                      <div style={row}>
+                      <div style={lastRow}>
                         <span style={{ fontWeight: 500 }}>Application Theme</span>
                         <div style={{ display: 'flex', gap: '4px', backgroundColor: isDark ? '#1e293b' : '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
                           <button onClick={() => setTheme('light')} style={{ ...controlBtn, backgroundColor: theme === 'light' ? (isDark ? '#3b82f6' : '#ffffff') : 'transparent', boxShadow: theme === 'light' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none', color: theme === 'light' && isDark ? '#fff' : 'inherit' }}>Light</button>
                           <button onClick={() => setTheme('dark')} style={{ ...controlBtn, backgroundColor: theme === 'dark' ? (isDark ? '#0f172a' : '#ffffff') : 'transparent', boxShadow: theme === 'dark' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none', color: theme === 'dark' && !isDark ? '#000' : 'inherit' }}>Dark</button>
                         </div>
-                      </div>
-                      <div style={lastRow}>
-                        <span style={{ fontWeight: 500 }}>Default Layout</span>
-                        <select value={viewMode} onChange={(e) => setViewMode(e.target.value as any)} style={{ ...controlBtn, outline: 'none' }}>
-                          <option value="canvas">Canvas Only</option>
-                          <option value="split">Split View</option>
-                          <option value="notebook">Notes Only</option>
-                        </select>
                       </div>
                     </div>
                   </>
@@ -253,7 +248,7 @@ export const SettingsDashboard = () => {
                     <div style={card}>
                       <div style={row}>
                       <span style={{ fontWeight: 500 }}>Download Project Backup</span>
-                      <button onClick={saveProject} style={{ ...controlBtn, backgroundColor: '#3b82f6', color: '#fff' }}>Export .board</button>
+                      <button onClick={() => activeStore?.getState().saveProject()} style={{ ...controlBtn, backgroundColor: '#3b82f6', color: '#fff' }}>Export .board</button>
                     </div>
                     <div style={row}>
                       <span style={{ fontWeight: 500 }}>Clear Cache</span>
@@ -261,9 +256,55 @@ export const SettingsDashboard = () => {
                     </div>
                     <div style={lastRow}>
                       <span style={{ fontWeight: 500 }}>Wipe Canvas</span>
-                      <button onClick={() => { if(window.confirm('Delete everything?')) clearBoard(); }} style={{ ...controlBtn, backgroundColor: '#ef4444', color: '#fff' }}>Reset Board</button>
+                      <button onClick={() => { if(window.confirm('Delete everything?')) { activeStore?.getState().clearBoard(); toggleSettings(); } }} style={{ ...controlBtn, backgroundColor: '#ef4444', color: '#fff' }}>Reset Board</button>
                     </div>
                   </div>
+                  </>
+                )}
+
+                {activeTab === 'about' && (
+                  <>
+                    <div style={{ textAlign: 'center', margin: '32px 0' }}>
+                      <img src="/logo.png" alt="Logo" style={{ width: 64, height: 64, borderRadius: 16, marginBottom: '16px', boxShadow: '0 8px 24px rgba(59,130,246,0.2)' }} />
+                      <h3 style={{ margin: '0 0 8px 0', fontSize: '1.5rem', fontWeight: 800 }}>WB Studio</h3>
+                      <p style={{ margin: 0, color: isDark ? '#94a3b8' : '#64748b' }}>Version 2.0.0 (Local First)</p>
+                    </div>
+                    
+                    <div style={card}>
+                      <div style={row}>
+                        <span style={{ fontWeight: 500 }}>Developer</span>
+                        <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>Independent Developer</span>
+                      </div>
+                      <div style={lastRow}>
+                        <span style={{ fontWeight: 500 }}>License</span>
+                        <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>MIT License</span>
+                      </div>
+                    </div>
+                    
+                    <div style={{ textAlign: 'center', marginTop: '32px' }}>
+                      <p style={{ fontSize: '0.85rem', color: isDark ? '#64748b' : '#94a3b8' }}>
+                        WB Studio is a modern, lightweight, privacy-focused tool designed<br />
+                        to seamlessly combine endless whiteboarding with structured note-taking.
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {activeTab === 'policies' && (
+                  <>
+                    <p style={{ fontSize: '0.85rem', color: isDark ? '#94a3b8' : '#64748b', marginBottom: '8px', marginLeft: '12px', textTransform: 'uppercase' }}>Privacy & Security</p>
+                    <div style={card}>
+                      <div style={{ padding: '16px' }}>
+                        <h4 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: isDark ? '#f1f5f9' : '#0f172a' }}>Local-First Privacy</h4>
+                        <p style={{ margin: '0 0 16px 0', fontSize: '0.9rem', color: isDark ? '#94a3b8' : '#475569', lineHeight: 1.5 }}>
+                          WB Studio operates entirely within your browser. All of your whiteboards, notebooks, and settings are stored locally on your device using IndexedDB. We do not transmit, track, or store your personal data on any external servers.
+                        </p>
+                        <h4 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: isDark ? '#f1f5f9' : '#0f172a' }}>Security Policy</h4>
+                        <p style={{ margin: 0, fontSize: '0.9rem', color: isDark ? '#94a3b8' : '#475569', lineHeight: 1.5 }}>
+                          We employ strict Content Security Policies (CSP) to prevent cross-site scripting (XSS) and unauthorized data transmission. Your data never leaves your device unless you explicitly export it.
+                        </p>
+                      </div>
+                    </div>
                   </>
                 )}
               </>
