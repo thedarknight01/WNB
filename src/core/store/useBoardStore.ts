@@ -3,8 +3,10 @@ import { useShallow } from 'zustand/react/shallow';
 import { createContext, useContext } from 'react';
 import { encryptData, decryptData } from '../../utils/encryption';
 import type { BoardObject, LineData, RectangleData, CircleData, ImageData } from '../../types/objects';
-import { saveDocument, type DocumentData } from './idb';
+import { getDocument, getDocuments, saveDocument, type DocumentData } from './idb';
 import { storeRegistry } from './useAppStore';
+
+const storeCleanup = new Map<string, () => void>();
 
 interface Camera { x: number; y: number; scale: number; }
 export type Tool = 'select' | 'pan' | 'pen' | 'eraser' | 'rectangle' | 'circle' | 'text' | 'arrow';
@@ -51,6 +53,10 @@ export interface BoardState {
   addPointToLastLine: (point: [number, number]) => void;
   updateCurrentShape: (pos: { x: number; y: number }) => void;
   addImage: (base64: string, x: number, y: number) => void;
+  addTableRow: (id: string, index?: number) => void;
+  addTableColumn: (id: string, index?: number) => void;
+  removeTableRow: (id: string, index?: number) => void;
+  removeTableColumn: (id: string, index?: number) => void;
   
   bringToFront: () => void;
   sendToBack: () => void;
@@ -67,7 +73,43 @@ export interface BoardState {
   clearBoard: () => void;
 }
 
+const removeLinkedReferences = async (docId: string, objectIds: string[]) => {
+  if (typeof window === 'undefined') return true;
+  const linkedStores = Array.from(storeRegistry.values()).filter(store => {
+    if (store.getState().docId === docId) return false;
+    return objectIds.some(id => new RegExp(`data-id\\s*=\\s*["']${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`).test(store.getState().notebookContent));
+  });
+  const openIds = new Set(Array.from(storeRegistry.keys()));
+  const persistedDocuments = (await getDocuments())
+    .filter(document => document.id !== docId && !openIds.has(document.id));
+  const linkedPersisted = (await Promise.all(persistedDocuments.map(async meta => {
+    const document = await getDocument(meta.id);
+    return document && objectIds.some(id => document.data.notebookContent && new RegExp(`data-id\\s*=\\s*["']${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`).test(document.data.notebookContent)) ? document : null;
+  }))).filter((document): document is DocumentData => Boolean(document));
+  if (linkedStores.length === 0 && linkedPersisted.length === 0) return true;
+  const confirmed = window.confirm('This object is linked from a notebook. Delete it and remove its references everywhere?');
+  if (!confirmed) return false;
+  const scrub = (content: string) => content
+    .replace(/<span([^>]*)>.*?<\/span>\s*(?:<img[^>]*alt=["'](?:Diagram:|WBN_LABEL_REF:)[^"']*["'][^>]*>\s*)?/g, (match, attributes: string) => {
+      const typeMatch = attributes.match(/data-type=["']([^"']+)["']/);
+      const idMatch = attributes.match(/data-id=["']([^"']+)["']/);
+      return typeMatch?.[1] === 'labelMention' && idMatch && objectIds.includes(idMatch[1]) ? '' : match;
+    });
+  linkedStores.forEach(store => {
+    const content = scrub(store.getState().notebookContent);
+    if (content !== store.getState().notebookContent) store.getState().setNotebookContent(content);
+  });
+  await Promise.all(linkedPersisted.map(document => saveDocument({
+    ...document,
+    updatedAt: Date.now(),
+    data: { ...document.data, notebookContent: scrub(document.data.notebookContent || '') },
+  })));
+  return true;
+};
+
 export const createBoardStore = (doc: DocumentData) => {
+  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  let saveQueue = Promise.resolve();
   const store = createStore<BoardState>((set, get) => ({
     docId: doc.id,
     docType: doc.type,
@@ -122,17 +164,24 @@ export const createBoardStore = (doc: DocumentData) => {
       if (!state.objectsById[id]) return state;
       return { objectsById: { ...state.objectsById, [id]: { ...state.objectsById[id], ...updates, updatedAt: Date.now() } as BoardObject } };
     }),
-    removeObject: (id) => set((state) => {
+    removeObject: async (id) => {
+      const object = get().objectsById[id];
+      if (!object || !(await removeLinkedReferences(get().docId, [id, object.parentId].filter(Boolean) as string[]))) return;
+      set((state) => {
       const newById = { ...state.objectsById }; delete newById[id];
       return { objectsById: newById, objectIds: state.objectIds.filter(i => i !== id), selectedIds: state.selectedIds.filter(sId => sId !== id) };
-    }),
+      });
+    },
 
-    deleteSelected: () => {
+    deleteSelected: async () => {
+      const state = get();
+      const linkedIds = state.selectedIds.flatMap(id => [id, state.objectsById[id]?.parentId]).filter(Boolean) as string[];
+      if (!(await removeLinkedReferences(state.docId, linkedIds))) return;
       get().saveHistory();
-      set((state) => {
-        const newById = { ...state.objectsById };
-        state.selectedIds.forEach(id => delete newById[id]);
-        return { objectsById: newById, objectIds: state.objectIds.filter(id => !state.selectedIds.includes(id)), selectedIds: [] };
+      set((currentState) => {
+        const newById = { ...currentState.objectsById };
+        currentState.selectedIds.forEach(id => delete newById[id]);
+        return { objectsById: newById, objectIds: currentState.objectIds.filter(id => !currentState.selectedIds.includes(id)), selectedIds: [] };
       });
     },
 
@@ -140,10 +189,24 @@ export const createBoardStore = (doc: DocumentData) => {
       get().saveHistory();
       set((state) => {
         const newById = { ...state.objectsById };
-        state.objectIds.forEach(id => {
-          const obj = newById[id];
-          if (obj.id === idOrParentId || obj.parentId === idOrParentId) newById[id] = { ...obj, label, updatedAt: Date.now() };
-        });
+        const target = newById[idOrParentId];
+        const groupId = target?.parentId || idOrParentId;
+        const normalizedLabel = label.trim() || undefined;
+        if (target?.parentId) {
+          state.objectIds.forEach(id => {
+            const obj = newById[id];
+            if (obj.parentId === groupId) {
+              newById[id] = { ...obj, groupLabel: normalizedLabel, updatedAt: Date.now() };
+            }
+          });
+        } else if (target) {
+          newById[idOrParentId] = { ...target, label: normalizedLabel, updatedAt: Date.now() };
+        } else {
+          state.objectIds.forEach(id => {
+            const obj = newById[id];
+            if (obj.parentId === groupId) newById[id] = { ...obj, groupLabel: normalizedLabel, updatedAt: Date.now() };
+          });
+        }
         return { objectsById: newById };
       });
     },
@@ -302,17 +365,68 @@ export const createBoardStore = (doc: DocumentData) => {
       };
     },
 
-    saveProject: () => {
-      const state = get();
-      const projectData = JSON.stringify({ version: 2, objectsById: state.objectsById, objectIds: state.objectIds, notebook: state.notebookContent });
-      const blob = new Blob([encryptData(projectData)], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `project-${Date.now()}.board`; a.click(); URL.revokeObjectURL(url);
+    addTableRow: (id, index) => {
+      get().saveHistory();
+      set(state => {
+        const table = state.objectsById[id];
+        if (!table || table.type !== 'table') return state;
+        const rowIndex = Math.max(0, Math.min(index ?? table.rows, table.rows));
+        const data = table.data.map(row => [...row]);
+        data.splice(rowIndex, 0, Array(table.cols).fill(''));
+        return { objectsById: { ...state.objectsById, [id]: { ...table, rows: table.rows + 1, height: Math.max(table.height, (table.height / table.rows) * (table.rows + 1)), data } } };
+      });
     },
 
-    loadProject: (encryptedString) => {
+    addTableColumn: (id, index) => {
+      get().saveHistory();
+      set(state => {
+        const table = state.objectsById[id];
+        if (!table || table.type !== 'table') return state;
+        const colIndex = Math.max(0, Math.min(index ?? table.cols, table.cols));
+        const data = table.data.map(row => {
+          const next = [...row];
+          next.splice(colIndex, 0, '');
+          return next;
+        });
+        return { objectsById: { ...state.objectsById, [id]: { ...table, cols: table.cols + 1, width: Math.max(table.width, (table.width / table.cols) * (table.cols + 1)), data } } };
+      });
+    },
+
+    removeTableRow: (id, index) => {
+      get().saveHistory();
+      set(state => {
+        const table = state.objectsById[id];
+        if (!table || table.type !== 'table' || table.rows <= 1) return state;
+        const rowIndex = Math.max(0, Math.min(index ?? table.rows - 1, table.rows - 1));
+        const data = table.data.map(row => [...row]);
+        data.splice(rowIndex, 1);
+        return { objectsById: { ...state.objectsById, [id]: { ...table, rows: table.rows - 1, data } } };
+      });
+    },
+
+    removeTableColumn: (id, index) => {
+      get().saveHistory();
+      set(state => {
+        const table = state.objectsById[id];
+        if (!table || table.type !== 'table' || table.cols <= 1) return state;
+        const colIndex = Math.max(0, Math.min(index ?? table.cols - 1, table.cols - 1));
+        const data = table.data.map(row => row.filter((_value, currentIndex) => currentIndex !== colIndex));
+        return { objectsById: { ...state.objectsById, [id]: { ...table, cols: table.cols - 1, data } } };
+      });
+    },
+
+    saveProject: async () => {
+      const state = get();
+      const projectData = JSON.stringify({ version: 2, objectsById: state.objectsById, objectIds: state.objectIds, notebook: state.notebookContent });
+      const encrypted = await encryptData(projectData);
+      const blob = new Blob([encrypted], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `project-${Date.now()}.wnb`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+
+    loadProject: async (encryptedString) => {
       try {
-        const parsed = JSON.parse(decryptData(encryptedString));
+        const parsed = JSON.parse(await decryptData(encryptedString));
         if (parsed.objects && !parsed.objectsById) {
           const byId: Record<string, BoardObject> = {}; const ids: string[] = [];
           parsed.objects.forEach((obj: BoardObject) => { byId[obj.id] = obj; ids.push(obj.id); });
@@ -329,7 +443,7 @@ export const createBoardStore = (doc: DocumentData) => {
   }));
 
   // Auto-save this document to IndexedDB on changes
-  store.subscribe((state, prevState) => {
+  const unsubscribe = store.subscribe((state, prevState) => {
     if (state.objectsById !== prevState.objectsById || state.notebookContent !== prevState.notebookContent) {
       
       // Do not save completely empty documents
@@ -337,26 +451,41 @@ export const createBoardStore = (doc: DocumentData) => {
       const isEmptyNotebook = state.docType === 'notebook' && (state.notebookContent === '<h1>New Note</h1>' || state.notebookContent.trim() === '');
       if (isEmptyWhiteboard || isEmptyNotebook) return;
 
-      setTimeout(() => {
-        saveDocument({
-          id: state.docId,
-          type: state.docType,
-          title: 'Document', // We update title from App Store instead normally
-          updatedAt: Date.now(),
-          data: {
-            objectsById: state.objectsById,
-            objectIds: state.objectIds,
-            notebookContent: state.notebookContent
-          }
-        });
+      if (saveTimer) clearTimeout(saveTimer);
+      const snapshot = {
+        id: state.docId,
+        type: state.docType,
+        title: doc.title,
+        updatedAt: Date.now(),
+        data: {
+          objectsById: state.objectsById,
+          objectIds: state.objectIds,
+          notebookContent: state.notebookContent
+        }
+      };
+      saveTimer = setTimeout(() => {
+        saveQueue = saveQueue.then(() => saveDocument(snapshot));
+        saveTimer = null;
       }, 500);
     }
   });
 
   // Register in global registry for keyboard shortcuts
   storeRegistry.set(doc.id, store);
+  storeCleanup.set(doc.id, () => {
+    if (saveTimer) clearTimeout(saveTimer);
+    unsubscribe();
+  });
 
   return store;
+};
+
+export const destroyBoardStore = (docId: string) => {
+  const store = storeRegistry.get(docId);
+  if (!store) return;
+  storeCleanup.get(docId)?.();
+  storeCleanup.delete(docId);
+  storeRegistry.delete(docId);
 };
 
 // React Context for the store

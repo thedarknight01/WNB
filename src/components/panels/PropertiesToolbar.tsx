@@ -13,12 +13,17 @@ export const PropertiesToolbar = () => {
   const sendToBack = useBoardStore(s => s.sendToBack);
   const groupSelected = useBoardStore(s => s.groupSelected);
   const ungroupSelected = useBoardStore(s => s.ungroupSelected);
+  const addTableRow = useBoardStore(s => s.addTableRow);
+  const addTableColumn = useBoardStore(s => s.addTableColumn);
+  const removeTableRow = useBoardStore(s => s.removeTableRow);
+  const removeTableColumn = useBoardStore(s => s.removeTableColumn);
+  const setObjectLabel = useBoardStore(s => s.setObjectLabel);
   const { theme, customFonts } = useSettingsStore();
   const firstObj = selectedIds.length > 0 ? objectsById[selectedIds[0]] : undefined;
 
   if (!store || !firstObj) return null;
 
-  const isDark = theme === 'dark';
+  const isDark = theme === 'dark' || theme === 'midnight';
   const update = (updates: Record<string, unknown>) => {
     store.getState().saveHistory();
     selectedIds.forEach(id => updateObject(id, updates));
@@ -73,8 +78,19 @@ export const PropertiesToolbar = () => {
       </label>
       <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
         <span style={labelStyle}>Border</span>
-        <input type="color" value={(firstObj as any).stroke || '#1e293b'} onChange={e => update({ stroke: e.target.value })} style={{ width: '30px', height: '25px', padding: 0, border: 0 }} />
+        <input
+          type="color"
+          value={(firstObj as any).tableBorderColor || (firstObj as any).stroke || '#1e293b'}
+          onChange={e => update(firstObj.type === 'table' ? { tableBorderColor: e.target.value } : { stroke: e.target.value })}
+          style={{ width: '30px', height: '25px', padding: 0, border: 0 }}
+        />
       </label>
+      {firstObj.type !== 'table' && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={labelStyle}>Line</span>
+          <input type="number" min="0" max="40" value={Math.round((firstObj as any).strokeWidth || 0)} onChange={e => update({ strokeWidth: Number(e.target.value) })} style={inputStyle} />
+        </label>
+      )}
       {firstObj.type === 'text' && (
         <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <span style={labelStyle}>Font</span>
@@ -82,6 +98,27 @@ export const PropertiesToolbar = () => {
             {customFonts.map(font => <option key={font} value={font}>{font}</option>)}
           </select>
         </label>
+      )}
+      <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <span style={labelStyle}>Label</span>
+        <input
+          type="text"
+          value={(firstObj as any).groupLabel || (firstObj as any).label || ''}
+          placeholder="Diagram label"
+          onChange={e => setObjectLabel(firstObj.parentId || firstObj.id, e.target.value)}
+          style={{ ...inputStyle, width: '120px' }}
+        />
+      </label>
+      {firstObj.type === 'table' && (
+        <>
+          <select value={(firstObj as any).tableTheme || 'blue'} onChange={e => update({ tableTheme: e.target.value })} style={{ ...inputStyle, width: '90px' }}>
+            {['blue', 'slate', 'emerald', 'rose', 'amber', 'purple'].map(themeName => <option key={themeName} value={themeName}>{themeName}</option>)}
+          </select>
+          <button onClick={() => addTableRow(firstObj.id)} style={buttonStyle} title="Add row">+ Row</button>
+          <button onClick={() => addTableColumn(firstObj.id)} style={buttonStyle} title="Add column">+ Col</button>
+          <button onClick={() => removeTableRow(firstObj.id)} style={buttonStyle} title="Remove row">- Row</button>
+          <button onClick={() => removeTableColumn(firstObj.id)} style={buttonStyle} title="Remove column">- Col</button>
+        </>
       )}
       <button onClick={() => update({ scaleX: ((firstObj as any).scaleX || 1) * -1 })} style={buttonStyle} title="Flip horizontally"><FlipHorizontal size={14} /></button>
       <button onClick={() => update({ scaleY: ((firstObj as any).scaleY || 1) * -1 })} style={buttonStyle} title="Flip vertically"><FlipVertical size={14} /></button>

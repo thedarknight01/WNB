@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BoardContext, createBoardStore } from '../../core/store/useBoardStore';
+import { BoardContext, createBoardStore, destroyBoardStore } from '../../core/store/useBoardStore';
 import { getDocument } from '../../core/store/idb';
 import { InfiniteCanvas } from '../canvas/InfiniteCanvas';
 import { NotebookPanel } from '../notebook/NotebookPanel';
@@ -38,7 +38,11 @@ export const DocumentProvider = ({ docId }: { docId: string }) => {
  }
  }
  });
- return () => { isMounted = false; };
+ return () => {
+   isMounted = false;
+   const appState = useAppStore.getState();
+   if (!appState.tabs.includes(docId) && !appState.splitTabs.includes(docId)) destroyBoardStore(docId);
+ };
  }, [docId]);
 
  useEffect(() => {
@@ -46,7 +50,8 @@ export const DocumentProvider = ({ docId }: { docId: string }) => {
  }, [store]);
 
  if (!store) {
- return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Loading document...</div>;
+ const knownDocument = useAppStore.getState().documents.some(document => document.id === docId);
+ return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>{knownDocument ? 'Loading document...' : 'Document unavailable'}</div>;
  }
 
  return (

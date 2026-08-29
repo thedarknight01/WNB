@@ -38,12 +38,11 @@ export const ContextualToolbar = ({ toolbarSlotId }: { toolbarSlotId: string }) 
   const tool = useBoardStore(s => s.tool);
   const setTool = useBoardStore(s => s.setTool);
   const isToolLocked = useBoardStore(s => s.isToolLocked);
-  const selectedIds = useBoardStore(s => s.selectedIds);
   const undo = useBoardStore(s => s.undo);
   const redo = useBoardStore(s => s.redo);
   const clearBoard = useBoardStore(s => s.clearBoard);
   const { theme } = useSettingsStore();
-  const isDark = theme === 'dark';
+  const isDark = theme === 'dark' || theme === 'midnight';
 
   const handleToolClick = (t: Tool) => setTool(t, false);
   const handleToolDoubleClick = (t: Tool) => setTool(t, true);
@@ -51,7 +50,7 @@ export const ContextualToolbar = ({ toolbarSlotId }: { toolbarSlotId: string }) 
   const handleImportProject = () => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.board';
+    input.accept = '.wnb,.board';
     input.onchange = (e: any) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -218,7 +217,7 @@ export const ContextualToolbar = ({ toolbarSlotId }: { toolbarSlotId: string }) 
     display: 'flex', flexDirection: 'column' as const, width: '100%',
     backgroundColor: isDark ? '#0f172a' : '#ffffff',
     borderBottom: isDark ? '1px solid #1e293b' : '1px solid #e2e8f0',
-    color: isDark ? '#f8fafc' : '#0f172a', zIndex: 100,
+    color: isDark ? '#f8fafc' : '#0f172a', zIndex: 300,
   };
   
   const toolbarStyle = { display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 16px', minHeight: '44px' };
@@ -241,7 +240,7 @@ export const ContextualToolbar = ({ toolbarSlotId }: { toolbarSlotId: string }) 
     );
   }
 
-  if (selectedIds.length > 0 || activeMenuTab === 'Property') {
+  if (activeMenuTab === 'Property') {
     return (
       <div style={{ ...ribbonStyle, padding: '4px 16px', minHeight: '52px', justifyContent: 'center' }}>
         <PropertiesToolbar />
@@ -267,7 +266,7 @@ export const ContextualToolbar = ({ toolbarSlotId }: { toolbarSlotId: string }) 
             <div style={divider} />
             <button onClick={() => store!.getState().saveProject()} style={toolBtn(false)}><Save size={18} />Save As...</button>
             <button onClick={() => window.dispatchEvent(new Event('export-canvas-image'))} style={toolBtn(false)}><Download size={18} />Export Image</button>
-            <button onClick={() => setShowPdfAlert(true)} style={toolBtn(false)}><Download size={18} />Export PDF</button>
+            <button onClick={() => window.print()} style={toolBtn(false)}><Download size={18} />Save as PDF</button>
           </>
         )}
         
@@ -304,7 +303,7 @@ export const ContextualToolbar = ({ toolbarSlotId }: { toolbarSlotId: string }) 
                     background: isDark ? '#1e293b' : '#ffffff',
                     border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
                     borderRadius: '8px', padding: '4px', display: 'flex', flexDirection: 'column',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', zIndex: 1000
+                    boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 3000
                   }}>
                     <button onClick={() => { handleToolClick('arrow'); store!.getState().setDefaultArrowType('straight'); setShowArrowMenu(false); }} style={{ ...toolBtn(store!.getState().defaultArrowType === 'straight'), flexDirection: 'row', justifyContent: 'flex-start', minWidth: '120px' }}>Straight</button>
                     <button onClick={() => { handleToolClick('arrow'); store!.getState().setDefaultArrowType('orthogonal'); setShowArrowMenu(false); }} style={{ ...toolBtn(store!.getState().defaultArrowType === 'orthogonal'), flexDirection: 'row', justifyContent: 'flex-start', minWidth: '120px' }}>Orthogonal</button>

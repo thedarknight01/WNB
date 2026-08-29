@@ -2,7 +2,95 @@ import { ReactRenderer } from '@tiptap/react';
 import tippy from 'tippy.js';
 import type { Instance } from 'tippy.js';
 import { MentionList } from './MentionList';
-import { getActiveStore } from '../../core/store/useAppStore';
+import { getActiveStore, storeRegistry } from '../../core/store/useAppStore';
+import type { BoardObject } from '../../types/objects';
+import { getDocument, getDocuments } from '../../core/store/idb';
+
+const escapeXml = (value: string) => value.replace(/[<>&'"]/g, character => ({
+  '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;',
+}[character] || character));
+
+const objectSnapshot = (objects: BoardObject[]) => {
+  if (objects.length === 1 && objects[0].type === 'image' && typeof (objects[0] as any).src === 'string') return (objects[0] as any).src;
+  const minX = Math.min(...objects.map(object => object.x));
+  const minY = Math.min(...objects.map(object => object.y));
+  const maxX = Math.max(...objects.map(object => object.x + ((object as any).width || ((object as any).radius ? (object as any).radius * 2 : 120))));
+  const maxY = Math.max(...objects.map(object => object.y + ((object as any).height || ((object as any).radius ? (object as any).radius * 2 : 80))));
+  const width = Math.max(1, maxX - minX);
+  const height = Math.max(1, maxY - minY);
+  const shapes = objects.map(object => {
+    const x = object.x - minX;
+    const y = object.y - minY;
+    const objectWidth = Math.max(1, (object as any).width || ((object as any).radius ? (object as any).radius * 2 : 120));
+    const objectHeight = Math.max(1, (object as any).height || ((object as any).radius ? (object as any).radius * 2 : 80));
+    const fill = escapeXml(String((object as any).fill || '#e2e8f0'));
+    const stroke = escapeXml(String((object as any).stroke || '#334155'));
+    if (object.type === 'image' && typeof (object as any).src === 'string') {
+      return `<image href="${escapeXml((object as any).src)}" x="${x}" y="${y}" width="${objectWidth}" height="${objectHeight}" preserveAspectRatio="none"/>`;
+    }
+    if (object.type === 'circle') return `<ellipse cx="${x + objectWidth / 2}" cy="${y + objectHeight / 2}" rx="${objectWidth / 2}" ry="${objectHeight / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
+    if (object.type === 'text') return `<text x="${x + 8}" y="${y + Math.max(24, objectHeight / 2)}" fill="${stroke}" font-family="sans-serif" font-size="18">${escapeXml(String((object as any).text || ''))}</text>`;
+    if (object.type === 'line' || object.type === 'arrow') {
+      const points = (object as any).points || [0, objectHeight / 2, objectWidth, objectHeight / 2];
+      return `<polyline points="${points.map((point: number, index: number) => point + (index % 2 === 0 ? x : y)).join(' ')}" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round"/>`;
+    }
+    return `<rect x="${x}" y="${y}" width="${objectWidth}" height="${objectHeight}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
+  }).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${shapes}</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+};
+
+const labelContent = async (item: { id: string; label: string; docId: string }) => {
+  const sourceStore = storeRegistry.get(item.docId);
+  const persistedDocument = sourceStore ? null : await getDocument(item.docId);
+  const sourceObjects = sourceStore ? sourceStore.getState().objectIds
+    .map((id: string) => sourceStore.getState().objectsById[id])
+    .filter((object: BoardObject | undefined): object is BoardObject => Boolean(object))
+    : (persistedDocument?.data.objectIds || []).map(id => persistedDocument?.data.objectsById?.[id]).filter((object): object is BoardObject => Boolean(object));
+  const includedIds = new Set<string>([item.id]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    sourceObjects.forEach((object: BoardObject) => {
+      if (object && object.parentId && includedIds.has(object.parentId) && !includedIds.has(object.id)) {
+        includedIds.add(object.id);
+        changed = true;
+      }
+    });
+  }
+  const groupObjects = sourceObjects.filter((object: BoardObject) => includedIds.has(object.id));
+  const snapshot = groupObjects.length > 0 ? objectSnapshot(groupObjects) : null;
+  const content: any[] = [{ type: 'labelMention', attrs: { id: item.id, label: item.label, docId: item.docId } }];
+  if (snapshot) content.push({ type: 'image', attrs: { src: snapshot, alt: `WBN_LABEL_REF:${item.docId}:${item.id}`, title: `Diagram: ${item.label}` } });
+  return content;
+};
+
+const readLabelEntries = async (query: string) => {
+  const loaded = Array.from(storeRegistry.values()).map(store => {
+    const state = store.getState();
+    return { id: state.docId, objectsById: state.objectsById, objectIds: state.objectIds };
+  });
+  const loadedIds = new Set(loaded.map(document => document.id));
+  const persisted = await Promise.all((await getDocuments())
+    .filter(document => !loadedIds.has(document.id) && document.type === 'whiteboard')
+    .map(async meta => {
+      const document = await getDocument(meta.id);
+      return document ? { id: document.id, objectsById: document.data.objectsById || {}, objectIds: document.data.objectIds || [] } : null;
+    }));
+  const documents = [...loaded, ...persisted.filter(Boolean) as { id: string; objectsById: Record<string, BoardObject>; objectIds: string[] }[]];
+  const labels = documents.flatMap(document => {
+    const objects = document.objectIds.map((id: string) => document.objectsById[id]).filter((object: BoardObject | undefined): object is BoardObject => Boolean(object));
+    return objects.flatMap((object: BoardObject) => {
+      if (object.groupLabel && object.parentId) return [{ id: object.parentId, label: object.groupLabel, docId: document.id }];
+      if (object.label) return [{ id: object.id, label: object.label, docId: document.id }];
+      return [];
+    });
+  });
+  const normalizedQuery = query.toLowerCase();
+  return Array.from(new Map(labels.map(item => [`${item.docId}:${item.id}`, item])).values())
+    .filter(item => item.label.toLowerCase().includes(normalizedQuery))
+    .slice(0, 8);
+};
 
 export const getSuggestionConfig = (isDark: boolean) => ({
   char: '/',
@@ -29,7 +117,7 @@ export const getSuggestionConfig = (isDark: boolean) => ({
           const obj = state.objectsById[id];
           if (obj && obj.type === 'image') html += `<img src="${(obj as any).src}" style="max-width:100%; border-radius: 8px;" />`;
         });
-        
+
         if (html) {
           editor.chain().focus().deleteRange(range).insertContent(html).run();
         }
@@ -70,6 +158,48 @@ export const getSuggestionConfig = (isDark: boolean) => ({
       },
       onExit() {
         popup[0].destroy();
+        component.destroy();
+      },
+    };
+  },
+});
+
+export const getLabelSuggestionConfig = (isDark: boolean) => ({
+  char: '@',
+  items: ({ query }: { query: string }) => readLabelEntries(query),
+  command: ({ editor, range, props }: any) => {
+    void labelContent(props).then(content => editor.chain().focus().deleteRange(range).insertContent(content).run());
+  },
+  render: () => {
+    let component: ReactRenderer;
+    let popup: Instance[] = [];
+    return {
+      onStart: (props: any) => {
+        component = new ReactRenderer(MentionList, { props: { ...props, isDark }, editor: props.editor });
+        if (!props.clientRect) return;
+        popup = tippy('body', {
+          getReferenceClientRect: props.clientRect,
+          appendTo: () => document.body,
+          content: component.element,
+          showOnCreate: true,
+          interactive: true,
+          trigger: 'manual',
+          placement: 'bottom-start',
+        });
+      },
+      onUpdate: (props: any) => {
+        component.updateProps(props);
+        if (props.clientRect && popup[0]) popup[0].setProps({ getReferenceClientRect: props.clientRect });
+      },
+      onKeyDown: (props: any) => {
+        if (props.event.key === 'Escape') {
+          popup[0]?.hide();
+          return true;
+        }
+        return (component.ref as any)?.onKeyDown?.(props) || false;
+      },
+      onExit: () => {
+        popup[0]?.destroy();
         component.destroy();
       },
     };

@@ -36,7 +36,7 @@ export const SettingsDashboard = () => {
   // Only enable save/clear if there is an active store
   const activeStore = getActiveStore();
 
-  const isDark = theme === 'dark';
+  const isDark = theme === 'dark' || theme === 'midnight';
 
   if (!isSettingsOpen) return null;
 
@@ -123,6 +123,9 @@ export const SettingsDashboard = () => {
                         <div style={{ display: 'flex', gap: '4px', backgroundColor: isDark ? '#1e293b' : '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
                           <button onClick={() => setTheme('light')} style={{ ...controlBtn, backgroundColor: theme === 'light' ? (isDark ? '#3b82f6' : '#ffffff') : 'transparent', boxShadow: theme === 'light' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none', color: theme === 'light' && isDark ? '#fff' : 'inherit' }}>Light</button>
                           <button onClick={() => setTheme('dark')} style={{ ...controlBtn, backgroundColor: theme === 'dark' ? (isDark ? '#0f172a' : '#ffffff') : 'transparent', boxShadow: theme === 'dark' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none', color: theme === 'dark' && !isDark ? '#000' : 'inherit' }}>Dark</button>
+                          <button onClick={() => setTheme('midnight')} style={{ ...controlBtn, backgroundColor: theme === 'midnight' ? '#172554' : 'transparent', color: theme === 'midnight' ? '#fff' : 'inherit' }}>Midnight</button>
+                          <button onClick={() => setTheme('sepia')} style={{ ...controlBtn, backgroundColor: theme === 'sepia' ? '#f5e6c8' : 'transparent', color: '#713f12' }}>Sepia</button>
+                          <button onClick={() => setTheme('forest')} style={{ ...controlBtn, backgroundColor: theme === 'forest' ? '#d1fae5' : 'transparent', color: '#166534' }}>Forest</button>
                         </div>
                       </div>
                     </div>

@@ -23,7 +23,7 @@ export const PropertiesPanel = () => {
     groupSelected: state.groupSelected,
     ungroupSelected: state.ungroupSelected
   }));
-  const isDark = theme === 'dark';
+  const isDark = theme === 'dark' || theme === 'midnight';
 
   if (selectedIds.length === 0) return null;
   const firstObj = objectsById[selectedIds[0]];

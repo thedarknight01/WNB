@@ -11,14 +11,16 @@ export const ContextMenu = () => {
   const selectedIds = useBoardStore(s => s.selectedIds);
   const setObjectLabel = useBoardStore(s => s.setObjectLabel);
   const groupSelected = useBoardStore(s => s.groupSelected);
+  const ungroupSelected = useBoardStore(s => s.ungroupSelected);
   const deleteSelected = useBoardStore(s => s.deleteSelected);
   const objects = objectIds.map(id => objectsById[id]).filter(Boolean);const { theme } = useSettingsStore();
   const [isLabeling, setIsLabeling] = useState(false);
   const [labelValue, setLabelValue] = useState('');
 
-  const isDark = theme === 'dark';
+  const isDark = theme === 'dark' || theme === 'midnight';
 
-const currentObject = contextMenu ? objects.find((o: any) => o.groupId === contextMenu.id || o.id === contextMenu.id) : null;
+const currentObject = contextMenu ? objects.find((o: any) => o.id === contextMenu.id || o.parentId === contextMenu.id) : null;
+  const hasGroupSelection = selectedIds.some(id => objectsById[id]?.parentId);
 
   useEffect(() => {
     const handleClick = () => setContextMenu(null);
@@ -81,14 +83,14 @@ const currentObject = contextMenu ? objects.find((o: any) => o.groupId === conte
         onClick={(e) => { 
           e.stopPropagation(); 
           // NEW: Reset the input to the actual label of the clicked object!
-          setLabelValue(currentObject?.label || ''); 
+          setLabelValue(currentObject?.groupLabel || currentObject?.label || ''); 
           setIsLabeling(true); 
         }}
       >
         <Tag size={16} /> Set Label
       </div>
       
-      {selectedIds.length > 1 && (
+      {selectedIds.length > 1 && !hasGroupSelection && (
         <div 
           style={itemStyle} 
           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? '#334155' : '#f1f5f9'}
@@ -96,6 +98,16 @@ const currentObject = contextMenu ? objects.find((o: any) => o.groupId === conte
           onClick={(e) => handleAction(e, groupSelected)}
         >
           <Group size={16} /> Group Items
+        </div>
+      )}
+      {hasGroupSelection && (
+        <div
+          style={itemStyle}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? '#334155' : '#f1f5f9'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          onClick={(e) => handleAction(e, ungroupSelected)}
+        >
+          <Group size={16} /> Ungroup Items
         </div>
       )}
 

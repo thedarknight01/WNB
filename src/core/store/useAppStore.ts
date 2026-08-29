@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { getDocuments, deleteDocument, type DocumentMeta, type DocumentData } from './idb';
+import { getDocuments, saveDocument, deleteDocument, type DocumentMeta, type DocumentData } from './idb';
 import type { StoreApi } from 'zustand';
 
 export interface AppState {
@@ -13,6 +13,7 @@ export interface AppState {
   splitTabId: string | null;
   isSplitViewOpen: boolean;
   focusedTabId: string | null;
+  isDocumentsLoaded: boolean;
 
   loadDocuments: () => Promise<void>;
   createDocument: (type: 'whiteboard' | 'notebook', title?: string) => Promise<string>;
@@ -40,16 +41,18 @@ export const useAppStore = create<AppState>()(
       splitTabId: null,
       isSplitViewOpen: false,
       focusedTabId: null,
+      isDocumentsLoaded: false,
 
       loadDocuments: async () => {
         const docs = await getDocuments();
-        set({ documents: docs });
+        const validIds = new Set(docs.map(doc => doc.id));
+        const persisted = get();
+        const tabs = persisted.tabs.filter(id => validIds.has(id));
+        const splitTabs = persisted.isSplitViewOpen ? persisted.splitTabs.filter(id => validIds.has(id)) : [];
+        const activeTabId = tabs.includes(persisted.activeTabId || '') ? persisted.activeTabId : tabs[0] || null;
+        const splitTabId = splitTabs.includes(persisted.splitTabId || '') ? persisted.splitTabId : splitTabs[0] || null;
+        set({ documents: docs, tabs, splitTabs, activeTabId, splitTabId: splitTabs.length > 0 ? splitTabId : null, isSplitViewOpen: splitTabs.length > 0, focusedTabId: activeTabId, isDocumentsLoaded: true });
         
-        // Auto-create a default whiteboard if none exist
-        if (docs.length === 0) {
-          const id = await get().createDocument('whiteboard');
-          set({ tabs: [id], activeTabId: id });
-        }
       },
 
       createDocument: async (type, title) => {
@@ -70,9 +73,8 @@ export const useAppStore = create<AppState>()(
           data: type === 'whiteboard' ? { objectsById: {}, objectIds: [] } : { notebookContent: '<h1>New Note</h1>' }
         };
         
-        // Do NOT save to IndexedDB immediately to avoid cluttering with empty documents.
-        // Just add to local store in memory. First edit will auto-save it!
         set((state) => ({ documents: [newDoc, ...state.documents] }));
+        await saveDocument(newDoc);
         return id;
       },
 
@@ -193,7 +195,13 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'visual_board_app_state',
-      partialize: (state) => ({ tabs: state.tabs, splitTabs: state.splitTabs || [], activeTabId: state.activeTabId, splitTabId: state.splitTabId })
+      partialize: (state) => ({
+        tabs: state.tabs,
+        splitTabs: state.isSplitViewOpen ? state.splitTabs || [] : [],
+        activeTabId: state.activeTabId,
+        splitTabId: state.isSplitViewOpen ? state.splitTabId : null,
+        isSplitViewOpen: state.isSplitViewOpen,
+      })
     }
   )
 );

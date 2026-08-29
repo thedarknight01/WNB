@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSettingsStore } from '../../core/store/useSettingsStore';
-import { useAppStore, getActiveStore } from '../../core/store/useAppStore';
-import { Settings, Columns, ChevronDown, FilePlus, Save, FolderOpen, Download } from 'lucide-react';
+import { useAppStore, getActiveStore, storeRegistry } from '../../core/store/useAppStore';
+import { Settings, Columns, ChevronDown, FilePlus, Save, FolderOpen, Download, Sun, Moon, Globe2 } from 'lucide-react';
+import { encryptData, decryptData } from '../../utils/encryption';
+import { getDocument, saveDocument, type DocumentData } from '../../core/store/idb';
+import { createBoardStore, destroyBoardStore } from '../../core/store/useBoardStore';
 
 export const GlobalMenu = () => {
   const { theme, toggleSettings } = useSettingsStore();
-  const isDark = theme === 'dark';
+  const isDark = theme === 'dark' || theme === 'midnight';
   
   const { isSplitViewOpen, toggleSplitView, activeMenuTab, setActiveMenuTab, focusedTabId, activeTabId, documents } = useAppStore();
   const focusedDocument = documents.find(document => document.id === (focusedTabId || activeTabId));
@@ -15,6 +18,9 @@ export const GlobalMenu = () => {
     if (isNotebook && activeMenuTab === 'Property') setActiveMenuTab('Home');
   }, [activeMenuTab, isNotebook, setActiveMenuTab]);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [saveCandidates, setSaveCandidates] = useState<string[]>([]);
+  const [saveIds, setSaveIds] = useState<string[]>([]);
   const fileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,8 +42,44 @@ export const GlobalMenu = () => {
   };
 
   const handleSave = () => {
-    getActiveStore()?.getState()?.saveProject();
+    const appState = useAppStore.getState();
+    const ids = [...new Set([...appState.tabs, ...appState.splitTabs])];
+    setSaveCandidates(ids);
+    setSaveIds(ids);
+    setSaveDialogOpen(true);
     setFileMenuOpen(false);
+  };
+
+  const saveSelectedDocuments = async () => {
+    const selectedDocuments = (await Promise.all(saveIds
+      .map(async id => {
+        const store = storeRegistry.get(id);
+        const metadata = documents.find(document => document.id === id);
+        if (!metadata) return null;
+        const persisted = await getDocument(id);
+        const state = store?.getState();
+        return {
+          id,
+          title: metadata.title,
+          type: metadata.type,
+          updatedAt: Date.now(),
+          data: state ? {
+            objectsById: state.objectsById,
+            objectIds: state.objectIds,
+            notebookContent: state.notebookContent,
+          } : persisted?.data || {},
+        } satisfies DocumentData;
+      })))
+      .filter((document): document is DocumentData => Boolean(document));
+    if (selectedDocuments.length === 0) return;
+    const encrypted = await encryptData(JSON.stringify({ version: 3, documents: selectedDocuments }));
+    const url = URL.createObjectURL(new Blob([encrypted], { type: 'application/octet-stream' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `wb-studio-${Date.now()}.wnb`;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setSaveDialogOpen(false);
   };
 
   const handleExport = () => {
@@ -45,16 +87,54 @@ export const GlobalMenu = () => {
     setFileMenuOpen(false);
   };
 
+  const handlePdfExport = () => {
+    const store = getActiveStore();
+    if (!isNotebook || !store) {
+      store?.getState().showToast('Open a notebook before saving as PDF');
+      setFileMenuOpen(false);
+      return;
+    }
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    if (!printWindow) {
+      store.getState().showToast('Allow popups to export the notebook PDF');
+      setFileMenuOpen(false);
+      return;
+    }
+    printWindow.document.write(`<!doctype html><html><head><title>Notebook</title><style>body{font-family:Inter,Segoe UI,sans-serif;max-width:780px;margin:40px auto;line-height:1.6;color:#111827}img{max-width:100%}table{border-collapse:collapse;width:100%}td,th{border:1px solid #cbd5e1;padding:6px}</style></head><body>${store.getState().notebookContent}</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+    setFileMenuOpen(false);
+  };
+
   const handleImport = () => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.board';
+    input.accept = '.wnb,.board';
     input.onchange = (e: any) => {
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) getActiveStore()?.getState()?.loadProject(ev.target.result as string);
+      reader.onload = async (ev) => {
+        if (!ev.target?.result) return;
+        try {
+          const parsed = JSON.parse(await decryptData(ev.target.result as string));
+          if (Array.isArray(parsed.documents)) {
+            for (const imported of parsed.documents as DocumentData[]) {
+              destroyBoardStore(imported.id);
+              await saveDocument(imported);
+              createBoardStore(imported);
+            }
+            await useAppStore.getState().loadDocuments();
+            const appStore = useAppStore.getState();
+            parsed.documents.forEach((document: DocumentData) => appStore.openTab(document.id, false));
+          } else {
+            await getActiveStore()?.getState()?.loadProject(ev.target.result as string);
+          }
+        } catch {
+          await getActiveStore()?.getState()?.loadProject(ev.target.result as string);
+        }
       };
       reader.readAsText(file);
     };
@@ -93,11 +173,12 @@ export const GlobalMenu = () => {
   });
 
   return (
+    <>
     <div style={ribbonStyle}>
       <div style={tabContainerStyle}>
         {/* LOGO */}
         <div style={{ display: 'flex', alignItems: 'center', marginRight: '8px' }}>
-         <img src="/logo.png" alt="Logo" style={{ width: 26, height: 26, borderRadius: 6 }} />
+         <img src="/logo.png" alt="Logo" style={{ width: 42, height: 42, borderRadius: 10 }} />
        </div>
 
  {/* FILE MENU */}
@@ -120,6 +201,7 @@ export const GlobalMenu = () => {
  <button onClick={handleSave} style={menuItemStyle}><Save size={14} /> Save</button>
  <button onClick={handleImport} style={menuItemStyle}><FolderOpen size={14} /> Open</button>
  <button onClick={handleExport} style={menuItemStyle}><Download size={14} /> Export Image</button>
+ <button onClick={handlePdfExport} style={menuItemStyle}><Download size={14} /> Save as PDF</button>
  </div>
  )}
  </div>
@@ -148,11 +230,37 @@ export const GlobalMenu = () => {
  {isSplitViewOpen && <span>Split</span>}
  </button>
  <div style={divider} />
+ <button onClick={() => useSettingsStore.getState().setTheme(isDark ? 'light' : 'dark')} title="Toggle theme" style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '6px', borderRadius: '50%', display: 'flex' }}>
+   {isDark ? <Sun size={16} /> : <Moon size={16} />}
+ </button>
+ <button onClick={() => window.location.assign('/')} title="Open home page" style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '6px', borderRadius: '50%', display: 'flex' }}>
+   <Globe2 size={16} />
+ </button>
  <button onClick={toggleSettings} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '4px' }}>
  <Settings size={16} />
  </button>
  </div>
  </div>
  </div>
+ {saveDialogOpen && (
+   <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+     <div style={{ background: isDark ? '#1e293b' : '#fff', color: isDark ? '#f8fafc' : '#0f172a', borderRadius: 12, padding: 20, minWidth: 320, boxShadow: '0 20px 40px rgba(0,0,0,.25)' }}>
+       <h3 style={{ marginTop: 0 }}>Save documents</h3>
+       {saveCandidates.map(id => {
+         const doc = documents.find(item => item.id === id);
+         if (!doc) return null;
+         return <label key={id} style={{ display: 'flex', gap: 8, padding: '6px 0' }}>
+           <input type="checkbox" checked={saveIds.includes(id)} onChange={() => setSaveIds(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id])} />
+           {doc.type === 'notebook' ? 'Notebook' : 'Whiteboard'}: {doc.title}
+         </label>;
+       })}
+       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+         <button onClick={() => setSaveDialogOpen(false)}>Cancel</button>
+         <button onClick={saveSelectedDocuments} disabled={saveIds.length === 0}>Save selected</button>
+       </div>
+     </div>
+   </div>
+ )}
+ </>
  );
 };

@@ -8,13 +8,16 @@ import { DocumentProvider } from './components/layout/DocumentProvider';
 import { GlobalMenu } from './components/panels/GlobalMenu';
 import { ContextualToolbar } from './components/panels/ContextualToolbar';
 import { Trash2 } from 'lucide-react';
+import { HomePage } from './pages/HomePage';
+import { DocumentationPage } from './pages/DocumentationPage';
 
 function App() {
   const { theme } = useSettingsStore();
-  const { loadDocuments, activeTabId, splitTabId, isSplitViewOpen, documents } = useAppStore();
+  const { loadDocuments, activeTabId, splitTabId, focusedTabId, isSplitViewOpen, documents, isDocumentsLoaded } = useAppStore();
   const [, refreshFocusedStore] = useState(0);
   const focusedStore = getActiveStore();
-  const isDark = theme === 'dark';
+  const isDark = theme === 'dark' || theme === 'midnight';
+  const pathname = window.location.pathname;
 
   const [isResizing, setIsResizing] = useState(false);
   const [splitRatio, setSplitRatio] = useState(50); // percentage
@@ -49,13 +52,16 @@ function App() {
     };
   }, [isResizing, splitTabId]);
 
+  if (pathname === '/') return <HomePage />;
+  if (pathname === '/doc') return <DocumentationPage />;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', margin: 0, overflow: 'hidden' }}>
       <SettingsDashboard />
       <GlobalMenu />
       {focusedStore && (
         <BoardContext.Provider value={focusedStore}>
-          <ContextualToolbar toolbarSlotId="notebook-toolbar-slot" />
+          <ContextualToolbar key={focusedTabId || 'active'} toolbarSlotId="notebook-toolbar-slot" />
         </BoardContext.Provider>
       )}
       <div 
@@ -75,7 +81,9 @@ function App() {
           pointerEvents: isResizing ? 'none' : 'auto', overflow: 'hidden'
         }}>
           <TabBar pane="main" />
-          {activeTabId ? (
+          {!isDocumentsLoaded ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isDark ? '#cbd5e1' : '#64748b' }}>Loading workspace...</div>
+          ) : activeTabId ? (
             <DocumentProvider docId={activeTabId} key={`pane1-${activeTabId}`} />
           ) : (
             <div style={{

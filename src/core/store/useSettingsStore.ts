@@ -13,7 +13,7 @@ interface Keybindings {
 }
 
 interface SettingsState {
-  theme: 'light' | 'dark';
+  theme: 'light' | 'dark' | 'sepia' | 'midnight' | 'forest';
   gridStyle: 'grid' | 'dot' | 'none';
   gridColor: string;
   backgroundColor: string;
@@ -31,7 +31,7 @@ interface SettingsState {
   snapToGrid: boolean;
   showRulers: boolean;
 
-  setTheme: (theme: 'light' | 'dark') => void;
+  setTheme: (theme: 'light' | 'dark' | 'sepia' | 'midnight' | 'forest') => void;
   setGridStyle: (style: 'grid' | 'dot' | 'none') => void;
   setGridColor: (color: string) => void;
   setBackgroundColor: (color: string) => void;
@@ -61,7 +61,11 @@ export const useSettingsStore = create<SettingsState>()(
       snapToGrid: false,
       showRulers: true,
 
-      setTheme: (theme) => set({ theme, backgroundColor: theme === 'dark' ? '#0f172a' : '#f8fafc', gridColor: theme === 'dark' ? '#334155' : '#cbd5e1' }),
+      setTheme: (theme) => set({
+        theme,
+        backgroundColor: theme === 'dark' || theme === 'midnight' ? '#0f172a' : theme === 'forest' ? '#eef7f0' : theme === 'sepia' ? '#fbf4e5' : '#f8fafc',
+        gridColor: theme === 'dark' || theme === 'midnight' ? '#334155' : theme === 'forest' ? '#b7d7bd' : theme === 'sepia' ? '#dfcfad' : '#cbd5e1',
+      }),
       setGridStyle: (style) => set({ gridStyle: style }),
       setGridColor: (color) => set({ gridColor: color }),
       setBackgroundColor: (color) => set({ backgroundColor: color }),

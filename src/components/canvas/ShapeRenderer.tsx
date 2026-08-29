@@ -11,7 +11,12 @@ const CanvasImage = ({ obj, commonProps }: { obj: ImageData, commonProps: any })
     image.onload = () => setImgElement(image);
   }, [obj.src]);
 
-  return <KonvaImage key={obj.id} {...commonProps} image={imgElement || undefined} width={obj.width} height={obj.height} />;
+  return (
+    <Group key={obj.id} {...commonProps}>
+      <Rect width={obj.width} height={obj.height} fill="rgba(0,0,0,0.001)" listening />
+      {imgElement && <KonvaImage image={imgElement} width={obj.width} height={obj.height} listening={false} />}
+    </Group>
+  );
 };
 
 interface Props {

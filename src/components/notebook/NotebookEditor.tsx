@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -16,14 +16,17 @@ import TableHeader from '@tiptap/extension-table-header';
 import { FontSize } from './FontSize';
 import { useSettingsStore } from '../../core/store/useSettingsStore';
 import { useBoardStore } from '../../core/store/useBoardStore';
-import { useAppStore } from '../../core/store/useAppStore';
+import { storeRegistry, useAppStore } from '../../core/store/useAppStore';
 import {
   Bold, Italic, Underline as UnderlineIcon, Heading1, Heading2, Heading3,
   List, ListOrdered, Table as TableIcon, Link as LinkIcon, Image as ImageIcon,
   AlignLeft, AlignCenter, AlignRight, Undo, Redo, Code, Quote,
   Strikethrough, Minus, Type, Baseline
 } from 'lucide-react';
-import { getSuggestionConfig } from './suggestion';
+import { getSuggestionConfig, getLabelSuggestionConfig } from './suggestion';
+import MentionExtension from '@tiptap/extension-mention';
+import Link from '@tiptap/extension-link';
+import Underline from '@tiptap/extension-underline';
 import './editor.css';
 
 // ----- Load Google Fonts from stored list on mount -----
@@ -46,7 +49,7 @@ export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolba
   const activeMenuTab = useAppStore(s => s.activeMenuTab);
   const focusedTabId = useAppStore(s => s.focusedTabId);
   const { notebookContent, setNotebookContent, focusCameraOn } = useBoardStore(s => ({ notebookContent: s.notebookContent, setNotebookContent: s.setNotebookContent, focusCameraOn: s.focusCameraOn }));
-  const isDark = theme === 'dark';
+  const isDark = theme === 'dark' || theme === 'midnight';
 
   // ---- State for inline dropdowns ----
   const [showLinkInput, setShowLinkInput] = useState(false);
@@ -68,7 +71,7 @@ export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolba
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({ link: false, underline: false }),
       // Text color
       TextStyle,
       Color,
@@ -79,6 +82,8 @@ export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolba
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       // Links & Images
       Image.configure({ inline: false, allowBase64: true }),
+      Link.configure({ openOnClick: false }),
+      Underline,
       // Tables
       Table.configure({ resizable: true }),
       TableRow,
@@ -90,6 +95,25 @@ export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolba
         suggestion: getSuggestionConfig(isDark),
         renderLabel({ node }: any) {
           return `↗ ${node.attrs.label || node.attrs.id}`;
+        },
+      }),
+      MentionExtension.extend({
+        name: 'labelMention',
+        addAttributes() {
+          return {
+            id: { default: null },
+            label: { default: null },
+            docId: {
+              default: null,
+              renderHTML: attributes => ({ 'data-doc-id': attributes.docId }),
+            },
+          };
+        },
+      }).configure({
+        HTMLAttributes: { class: 'mention-link', 'data-type': 'labelMention' },
+        suggestion: getLabelSuggestionConfig(isDark),
+        renderLabel({ node }: any) {
+          return `@${node.attrs.label || node.attrs.id}`;
         },
       }),
       FontFamily,
@@ -137,7 +161,20 @@ export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolba
       const target = e.target as HTMLElement;
       if (target.classList.contains('mention-link')) {
         const id = target.getAttribute('data-id');
-        if (id) focusCameraOn(id);
+        const docId = target.getAttribute('data-doc-id') || target.getAttribute('docid');
+        if (id && docId) {
+          const appStore = useAppStore.getState();
+          appStore.openTab(docId);
+          appStore.setFocusedTab(docId);
+          const focusSource = () => {
+            const sourceStore = storeRegistry.get(docId);
+            if (sourceStore) sourceStore.getState().focusCameraOn(id);
+            else window.setTimeout(() => storeRegistry.get(docId)?.getState().focusCameraOn(id), 100);
+          };
+          focusSource();
+        } else if (id) {
+          focusCameraOn(id);
+        }
       }
     };
     const editorDom = document.querySelector('.tiptap');
@@ -414,8 +451,18 @@ export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolba
     ? <div style={{ padding: '0 8px', color: isDark ? '#94a3b8' : '#64748b', fontSize: '0.75rem' }}>Notebook properties</div>
     : toolbar;
 
-  useEffect(() => {
-    setToolbarTarget(focusedTabId === docId && typeof document !== 'undefined' ? document.getElementById(toolbarSlotId) : null);
+  useLayoutEffect(() => {
+    if (focusedTabId !== docId || typeof document === 'undefined') {
+      setToolbarTarget(null);
+      return;
+    }
+    const target = document.getElementById(toolbarSlotId);
+    if (target) {
+      setToolbarTarget(target);
+      return;
+    }
+    const frame = requestAnimationFrame(() => setToolbarTarget(document.getElementById(toolbarSlotId)));
+    return () => cancelAnimationFrame(frame);
   }, [docId, focusedTabId, toolbarSlotId]);
 
   return (

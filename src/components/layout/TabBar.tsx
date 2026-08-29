@@ -14,7 +14,7 @@ export const TabBar = ({ pane = 'main' }: { pane?: 'main' | 'split' }) => {
     moveToMain, moveToSplit
   } = useAppStore();
   const { theme } = useSettingsStore();
-  const isDark = theme === 'dark';
+  const isDark = theme === 'dark' || theme === 'midnight';
 
   const currentTabId = pane === 'main' ? activeTabId : splitTabId;
   const currentPaneTabs = pane === 'main' ? tabs : splitTabs;
@@ -72,7 +72,7 @@ export const TabBar = ({ pane = 'main' }: { pane?: 'main' | 'split' }) => {
         style={{
           display: 'flex', background: bg,
           borderBottom: `1px solid ${border}`,
-          height: '38px', alignItems: 'flex-end',
+          height: '32px', alignItems: 'flex-end',
           padding: '0 8px', gap: '2px',
           userSelect: 'none', position: 'relative', zIndex: 100,
         }}
@@ -116,7 +116,7 @@ export const TabBar = ({ pane = 'main' }: { pane?: 'main' | 'split' }) => {
                 background: isActive ? activeTabBg : isHovered ? (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)') : 'transparent',
                 color: isActive ? (isDark ? '#f1f5f9' : '#111827') : inactiveColor,
                 padding: '0 10px',
-                height: isActive ? '33px' : '30px',
+                height: isActive ? '29px' : '27px',
                 borderTopLeftRadius: '8px', borderTopRightRadius: '8px',
                 borderTop: `2px solid ${isActive ? accentColor : 'transparent'}`,
                 borderLeft: isActive ? `1px solid ${border}` : '1px solid transparent',
@@ -228,4 +228,3 @@ export const TabBar = ({ pane = 'main' }: { pane?: 'main' | 'split' }) => {
     </>
   );
 };
-

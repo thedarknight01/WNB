@@ -3,7 +3,7 @@ import { NotebookEditor } from './NotebookEditor';
 
 export const NotebookPanel = ({ docId, toolbarSlotId }: { docId: string; toolbarSlotId: string }) => {
   const { theme } = useSettingsStore();
-  const isDark = theme === 'dark';
+  const isDark = theme === 'dark' || theme === 'midnight';
 
   return (
     <div style={{

@@ -145,7 +145,7 @@ export const CanvasRuler = ({ camera, stageWidth, stageHeight }: Props) => {
   const hRef = useRef<HTMLCanvasElement>(null);
   const vRef = useRef<HTMLCanvasElement>(null);
   const { theme } = useSettingsStore();
-  const isDark = theme === 'dark';
+  const isDark = theme === 'dark' || theme === 'midnight';
 
   useEffect(() => {
     if (hRef.current) drawHorizontalRuler(hRef.current, camera, isDark);

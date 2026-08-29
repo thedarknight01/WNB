@@ -11,6 +11,7 @@ import type { LineData, RectangleData, CircleData, TextData } from '../../types/
 import { ContextMenu } from '../panels/ContextMenu';
 import { CanvasRuler, RULER_SIZE } from './CanvasRuler';
 import { computeAlignmentGuides } from '../../hooks/useAlignmentGuides';
+import { useAppStore } from '../../core/store/useAppStore';
 
 
 const CanvasLabels = () => {
@@ -18,15 +19,23 @@ const CanvasLabels = () => {
   const objectIds = useBoardStore(s => s.objectIds);
   const { labelFontFamily, labelFontSize, labelColor, labelFontStyle } = useSettingsStore();
   const objects = objectIds.map((id: any) => objectsById[id]).filter(Boolean);
-  const labeledItems = objects.filter((o: any) => o.label);
-  const uniqueLabels = [...new Set(labeledItems.map((o: any) => o.label))];
+  const groupedItems = new Map<string, any[]>();
+  objects.forEach((object: any) => {
+    if (object.parentId && object.groupLabel) {
+      const items = groupedItems.get(object.parentId) || [];
+      items.push(object);
+      groupedItems.set(object.parentId, items);
+    }
+  });
+  const labelEntries = [
+    ...Array.from(groupedItems.entries()).map(([id, items]) => ({ id, label: items[0].groupLabel, targets: items })),
+    ...objects.filter((object: any) => object.label && !object.parentId).map((object: any) => ({ id: object.id, label: object.label, targets: [object] })),
+  ];
 
   return (
     <>
-      {uniqueLabels.map((labelText) => {
+      {labelEntries.map(({ id, label: labelText, targets }) => {
         if (!labelText) return null;
-
-        const targets = labeledItems.filter((o: any) => o.label === labelText);
 
         let minX = Infinity;
         let maxX = -Infinity;
@@ -70,7 +79,7 @@ const CanvasLabels = () => {
 
         return (
           <Text
-            key={`label-${labelText}`}
+            key={`label-${id}`}
             x={centerX - 150}
             y={maxY + 20} // Always rendered exactly 20 pixels below the lowest object in the group
             width={300}
@@ -110,6 +119,21 @@ export const InfiniteCanvas = () => {
 
   const { backgroundColor, showRulers } = useSettingsStore();
   const objects = objectIds.map((id: any) => objectsById[id]).filter(Boolean);
+  const getGroupIds = (object: any) => {
+    const rootId = object.parentId || object.id;
+    const ids = new Set<string>([rootId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      objects.forEach(candidate => {
+        if (candidate.parentId && ids.has(candidate.parentId) && !ids.has(candidate.id)) {
+          ids.add(candidate.id);
+          changed = true;
+        }
+      });
+    }
+    return objects.filter(candidate => ids.has(candidate.id)).map(candidate => candidate.id);
+  };
   const [isDrawing, setIsDrawing] = useState(false);
   const [editingText, setEditingText] = useState<{ id: string, x: number, y: number, text: string } | null>(null);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -126,6 +150,10 @@ export const InfiniteCanvas = () => {
 
   // Initialize modular keyboard shortcuts
   useKeyboardShortcuts(!!editingText, setIsSpacePressed, setIsPanning);
+
+  useEffect(() => {
+    useAppStore.getState().setActiveMenuTab(selectedIds.length > 0 ? 'Property' : 'Insert');
+  }, [selectedIds]);
 
   useEffect(() => {
     const node = stageContainerRef.current;
@@ -265,6 +293,7 @@ export const InfiniteCanvas = () => {
       const clickedOnEmpty = e.target === e.target.getStage();
       if (clickedOnEmpty) {
         setSelectedIds([]);
+        useAppStore.getState().setActiveMenuTab('Insert');
         setSelectionBox({ startX: pos.x, startY: pos.y, endX: pos.x, endY: pos.y });
       }
       return;
@@ -469,11 +498,28 @@ export const InfiniteCanvas = () => {
                 }
               },
               onMouseDown: (e: any) => {
+                if (e.evt.button === 0 && tool !== 'eraser' && tool !== 'text') {
+                  e.cancelBubble = true;
+                  const groupIds = getGroupIds(obj);
+                  if (tool !== 'select') (store as any).getState().setTool('select');
+                  setSelectedIds(e.evt.shiftKey
+                    ? (selectedIds.includes(obj.id)
+                      ? selectedIds.filter(id => !groupIds.includes(id))
+                      : [...new Set([...selectedIds, ...groupIds])])
+                    : groupIds);
+                  useAppStore.getState().setActiveMenuTab('Property');
+                  if (tool === 'select' && selectedIds.includes(obj.id) && !e.evt.shiftKey) {
+                    saveHistory();
+                    setDragStartPos(getCanvasCoordinates());
+                    setIsDraggingObjects(true);
+                  }
+                  return;
+                }
                 if (e.evt.button === 2) {
                   e.cancelBubble = true;
                   if (!isSelected) {
                     // FIXED: o.parentId instead of o.groupId
-                    const groupIds = obj.parentId ? objects.filter((o: any) => o.parentId === obj.parentId).map((o: any) => o.id) : [obj.id];
+                    const groupIds = getGroupIds(obj);
                     setSelectedIds(groupIds);
                   }
                   setContextMenu({
@@ -497,7 +543,7 @@ export const InfiniteCanvas = () => {
                 }
                 if (tool === 'select') {
                   e.cancelBubble = true;
-                  const groupIds = obj.parentId ? objects.filter((o: any) => o.parentId === obj.parentId).map((o: any) => o.id) : [obj.id];
+                  const groupIds = getGroupIds(obj);
 
                   if (e.evt.shiftKey) {
                     setSelectedIds(isSelected ? selectedIds.filter(id => !groupIds.includes(id)) : [...new Set([...selectedIds, ...groupIds])]);
