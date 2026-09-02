@@ -1,5 +1,4 @@
-import { useContext } from 'react';
-import { useBoardStore, BoardContext } from '../../core/store/useBoardStore';
+import { useBoardStore } from '../../core/store/useBoardStore';
 import { useSettingsStore } from '../../core/store/useSettingsStore';
 import { 
   AlignLeft, AlignCenter, AlignRight, AlignJustify, 
@@ -12,11 +11,11 @@ import {
 
 export const PropertiesPanel = () => {
   const { theme, customFonts } = useSettingsStore();
-  const store = useContext(BoardContext);
-  if (!store) return null;
   const objectsById = useBoardStore(s => s.objectsById);
   const selectedIds = useBoardStore(s => s.selectedIds);
   const updateObject = useBoardStore(s => s.updateObject);
+  const saveHistory = useBoardStore(s => s.saveHistory);
+  const duplicateSelected = useBoardStore(s => s.duplicateSelected);
   const bringToFront = useBoardStore(s => s.bringToFront);
   const sendToBack = useBoardStore(s => s.sendToBack);
   const groupSelected = useBoardStore(s => s.groupSelected);
@@ -28,7 +27,7 @@ export const PropertiesPanel = () => {
   if (!firstObj) return null;
 
   const handleUpdate = (updates: any) => {
-    store.getState().saveHistory();
+    saveHistory();
     selectedIds.forEach(id => updateObject(id, updates));
   };
 
@@ -163,7 +162,7 @@ export const PropertiesPanel = () => {
               {firstObj.locked ? <Lock size={14}/> : <Unlock size={14}/>} 
               {firstObj.locked ? 'Unlock' : 'Lock'}
            </button>
-           <button onClick={() => store!.getState().duplicateSelected()} style={{ ...inputStyle, width: '48%', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
+           <button onClick={duplicateSelected} style={{ ...inputStyle, width: '48%', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
               <Copy size={14}/> Duplicate
            </button>
         </div>

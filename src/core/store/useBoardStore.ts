@@ -436,7 +436,7 @@ export const createBoardStore = (doc: DocumentData) => {
         }
         if (parsed.notebook) set({ notebookContent: parsed.notebook });
         get().showToast("Project Loaded!");
-      } catch (e) { get().showToast("Error loading file"); }
+      } catch { get().showToast("Error loading file"); }
     },
 
     clearBoard: () => set({ objectsById: {}, objectIds: [], past: [], future: [], selectedIds: [] })

@@ -241,6 +241,20 @@ export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolba
     e.target.value = '';
   }, [editor]);
 
+  useLayoutEffect(() => {
+    if (focusedTabId !== docId || typeof document === 'undefined') {
+      setToolbarTarget(null);
+      return;
+    }
+    const target = document.getElementById(toolbarSlotId);
+    if (target) {
+      setToolbarTarget(target);
+      return;
+    }
+    const frame = requestAnimationFrame(() => setToolbarTarget(document.getElementById(toolbarSlotId)));
+    return () => cancelAnimationFrame(frame);
+  }, [docId, focusedTabId, toolbarSlotId]);
+
   if (!editor) return null;
 
   // ----- Styles -----
@@ -478,20 +492,6 @@ export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolba
   const notebookToolbar = activeMenuTab === 'Property'
     ? <div style={{ padding: '0 8px', color: isDark ? '#94a3b8' : '#64748b', fontSize: '0.75rem' }}>Notebook properties</div>
     : toolbar;
-
-  useLayoutEffect(() => {
-    if (focusedTabId !== docId || typeof document === 'undefined') {
-      setToolbarTarget(null);
-      return;
-    }
-    const target = document.getElementById(toolbarSlotId);
-    if (target) {
-      setToolbarTarget(target);
-      return;
-    }
-    const frame = requestAnimationFrame(() => setToolbarTarget(document.getElementById(toolbarSlotId)));
-    return () => cancelAnimationFrame(frame);
-  }, [docId, focusedTabId, toolbarSlotId]);
 
   return (
     <>

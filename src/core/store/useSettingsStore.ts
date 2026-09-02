@@ -114,7 +114,7 @@ export const useSettingsStore = create<SettingsState>()(
       partialize: (state) => {
         // SECURITY: masterPassword must NEVER be persisted to localStorage (memory-only)
         // isSettingsOpen is ephemeral UI state, also excluded
-        const { isSettingsOpen, masterPassword, setMasterPassword, ...rest } = state as any;
+        const { isSettingsOpen: _isSettingsOpen, masterPassword: _masterPassword, setMasterPassword: _setMasterPassword, ...rest } = state as any;
         return rest;
       },
       onRehydrateStorage: () => (state) => {
