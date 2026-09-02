@@ -68,8 +68,8 @@ export const uploadDocumentToCloud = async (doc: any): Promise<{ success: boolea
   });
   
   if (error) {
-    console.error('Failed to upload to cloud:', error); return { success: false, error: error.message };
-    return { success: false };
+    console.error('Failed to upload to cloud:', error);
+    return { success: false, error: error.message };
   }
   return { success: true };
 };

@@ -2,9 +2,31 @@ import { useSettingsStore } from '../core/store/useSettingsStore';
 const LEGACY_KEY = 'v!su4l_b04rd_s3cr3t';
 const FILE_PREFIX_V2 = 'WNB2:';
 const FILE_PREFIX_V3 = 'WNB3:';
-const getDerivationKey = () => {
+const LEGACY_FALLBACK_DERIVATION_KEY = 'WNB Studio local project key';
+const DEVICE_KEY_STORAGE_KEY = 'wnb_device_key_v1';
+
+const getOrCreateDeviceKey = () => {
+  if (typeof window === 'undefined') return LEGACY_FALLBACK_DERIVATION_KEY;
+  try {
+    const existing = window.localStorage.getItem(DEVICE_KEY_STORAGE_KEY);
+    if (existing) return existing;
+    const generated = typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : Array.from(crypto.getRandomValues(new Uint8Array(16))).map(v => v.toString(16).padStart(2, '0')).join('');
+    window.localStorage.setItem(DEVICE_KEY_STORAGE_KEY, generated);
+    return generated;
+  } catch {
+    return LEGACY_FALLBACK_DERIVATION_KEY;
+  }
+};
+
+const getDerivationKeyCandidates = () => {
   const pwd = useSettingsStore.getState().masterPassword;
-  return new TextEncoder().encode(pwd ? pwd : 'WNB Studio local project key');
+  if (pwd) return [pwd];
+  const deviceKey = getOrCreateDeviceKey();
+  return deviceKey === LEGACY_FALLBACK_DERIVATION_KEY
+    ? [deviceKey]
+    : [deviceKey, LEGACY_FALLBACK_DERIVATION_KEY];
 };
 
 const toBase64 = (bytes: Uint8Array) => {
@@ -31,9 +53,10 @@ const decompress = async (bytes: Uint8Array): Promise<string> => {
 };
 
 export const encryptData = async (data: string): Promise<string> => {
+  const [activeKey] = getDerivationKeyCandidates();
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const baseKey = await crypto.subtle.importKey('raw', getDerivationKey(), 'PBKDF2', false, ['deriveKey']);
+  const baseKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(activeKey), 'PBKDF2', false, ['deriveKey']);
   const key = await crypto.subtle.deriveKey(
     { name: 'PBKDF2', salt, iterations: 120000, hash: 'SHA-256' },
     baseKey,
@@ -69,20 +92,26 @@ export const decryptData = async (value: string): Promise<string> => {
   const iv = payload.slice(16, 28);
   const encrypted = payload.slice(28);
   
-  const baseKey = await crypto.subtle.importKey('raw', getDerivationKey(), 'PBKDF2', false, ['deriveKey']);
-  const key = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 120000, hash: 'SHA-256' },
-    baseKey,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['decrypt'],
-  );
-  
-  const plainBytes = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted);
-  
-  if (isV3) {
-    return await decompress(new Uint8Array(plainBytes));
-  } else {
-    return new TextDecoder().decode(plainBytes);
+  let lastError: unknown = null;
+  const candidates = getDerivationKeyCandidates();
+  for (const candidate of candidates) {
+    try {
+      const baseKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(candidate), 'PBKDF2', false, ['deriveKey']);
+      const key = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt, iterations: 120000, hash: 'SHA-256' },
+        baseKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt'],
+      );
+      const plainBytes = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted);
+      if (isV3) {
+        return await decompress(new Uint8Array(plainBytes));
+      }
+      return new TextDecoder().decode(plainBytes);
+    } catch (error) {
+      lastError = error;
+    }
   }
+  throw lastError instanceof Error ? lastError : new Error('Unable to decrypt data');
 };

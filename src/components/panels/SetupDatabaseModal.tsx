@@ -45,7 +45,7 @@ alter table documents disable row level security;`;
   try {
     const urlObj = new URL(supabaseUrl);
     projectRef = urlObj.hostname.split('.')[0];
-  } catch (e) {
+  } catch {
     // ignore
   }
 
