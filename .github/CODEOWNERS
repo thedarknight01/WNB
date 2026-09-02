@@ -1,0 +1,11 @@
+# Code Owners — these people must review PRs before merge
+# Format: <file pattern>  <@github-username>
+
+# Global: you must approve every PR
+*  @thedarknight01
+
+# Critical security files — extra protection
+src/utils/encryption.ts        @thedarknight01
+src/core/store/useSettingsStore.ts  @thedarknight01
+src/core/supabaseClient.ts     @thedarknight01
+.github/workflows/             @thedarknight01

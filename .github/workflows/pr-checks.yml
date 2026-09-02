@@ -1,0 +1,32 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches:
+      - main      # Run on every PR targeting main
+
+jobs:
+  validate:
+    name: Validate PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Security audit (fail on HIGH or CRITICAL)
+        run: npm audit --audit-level=high
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Build check (must compile successfully)
+        run: npm run build
