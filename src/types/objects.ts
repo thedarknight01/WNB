@@ -52,6 +52,7 @@ export interface BaseObject {
   id: string;
   name: string;
   label?: string;
+  groupLabel?: string;
   type: 'line' | 'rectangle' | 'circle' | 'text' | 'image' | 'table' | 'video' | 'equation' | 'symbol' | 'arrow';
   zIndex: number;      // Layer
   parentId?: string;  // for grouping 

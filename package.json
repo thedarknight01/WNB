@@ -1,7 +1,7 @@
 {
   "name": "wb-studio",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,21 +10,23 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tiptap/extension-color": "^3.29.2",
-    "@tiptap/extension-font-family": "^3.29.2",
-    "@tiptap/extension-highlight": "^3.29.2",
-    "@tiptap/extension-image": "^3.29.2",
-    "@tiptap/extension-link": "^3.29.2",
-    "@tiptap/extension-mention": "^3.29.2",
-    "@tiptap/extension-table": "^3.29.2",
-    "@tiptap/extension-table-cell": "^3.29.2",
-    "@tiptap/extension-table-header": "^3.29.2",
-    "@tiptap/extension-table-row": "^3.29.2",
-    "@tiptap/extension-text-align": "^3.29.2",
-    "@tiptap/extension-text-style": "^3.29.2",
-    "@tiptap/extension-underline": "^3.29.2",
-    "@tiptap/react": "^3.29.2",
-    "@tiptap/starter-kit": "^3.29.2",
+    "@supabase/supabase-js": "^2.114.0",
+    "@tiptap/core": "^3.31.0",
+    "@tiptap/extension-color": "^3.31.0",
+    "@tiptap/extension-font-family": "^3.31.0",
+    "@tiptap/extension-highlight": "^3.31.0",
+    "@tiptap/extension-image": "^3.31.0",
+    "@tiptap/extension-link": "^3.31.0",
+    "@tiptap/extension-mention": "^3.31.0",
+    "@tiptap/extension-table": "^3.31.0",
+    "@tiptap/extension-table-cell": "^3.31.0",
+    "@tiptap/extension-table-header": "^3.31.0",
+    "@tiptap/extension-table-row": "^3.31.0",
+    "@tiptap/extension-text-align": "^3.31.0",
+    "@tiptap/extension-text-style": "^3.31.0",
+    "@tiptap/extension-underline": "^3.31.0",
+    "@tiptap/react": "^3.31.0",
+    "@tiptap/starter-kit": "^3.31.0",
     "framer-motion": "^12.43.0",
     "idb": "^8.0.3",
     "konva": "^10.3.0",
@@ -43,5 +45,7 @@
     "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.0"
-  }
+  },
+  "description": "WBN Studio - Local-first infinite whiteboard and notebook workspace",
+  "homepage": "https://github.com"
 }

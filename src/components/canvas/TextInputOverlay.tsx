@@ -1,4 +1,5 @@
-import { useBoardStore } from '../../core/store/useBoardStore';
+import React from 'react';
+import { BoardContext } from '../../core/store/useBoardStore';
 
 interface Props {
   editingText: { id: string, x: number, y: number, text: string };
@@ -7,7 +8,8 @@ interface Props {
 }
 
 export const TextInputOverlay = ({ editingText, setEditingText, camera }: Props) => {
-  const { updateObject, objectsById } = useBoardStore();
+  const store = React.useContext(BoardContext);
+  const { updateObject, objectsById } = store!.getState();
   const obj = objectsById[editingText.id] as any;
 
   return (

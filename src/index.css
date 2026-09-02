@@ -11,8 +11,8 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --sans: 'Inter', 'Avenir Next', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --heading: 'Plus Jakarta Sans', 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
   font: 18px/145% var(--sans);
@@ -24,6 +24,7 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-family: var(--sans);
 
   @media (max-width: 1024px) {
     font-size: 16px;
@@ -56,12 +57,12 @@
   margin: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  
 }
 
 body {
   margin: 0;
-  overflow: hidden;
+  
 }
 
 h1,
@@ -228,3 +229,5 @@ canvas {
 .alignment-guide {
   animation: guidePulse 0.3s ease both;
 }
+
+@media (max-width: 768px) { .mobile-hidden { display: none !important; } .mobile-col { flex-direction: column !important; } }

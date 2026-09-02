@@ -217,12 +217,16 @@ const ResizableTable = ({
 // MAIN HTML OVERLAYS
 // ─────────────────────────────────────────────────────────────────────────────
 export const HtmlOverlays = ({ rulerOffset = 0 }: Props) => {
-  const { objectsById, objectIds, camera, selectedIds, updateObject } = useBoardStore();
+  const objectsById = useBoardStore(s => s.objectsById);
+  const objectIds = useBoardStore(s => s.objectIds);
+  const camera = useBoardStore(s => s.camera);
+  const selectedIds = useBoardStore(s => s.selectedIds);
+  const updateObject = useBoardStore(s => s.updateObject);
 
   // Filter for the custom HTML nodes
   const htmlObjects = objectIds
-    .map(id => objectsById[id])
-    .filter(obj => obj && ['table', 'video', 'equation'].includes(obj.type));
+    .map((id: any) => objectsById[id])
+    .filter((obj: any) => obj && ['table', 'video', 'equation'].includes(obj.type));
 
   if (htmlObjects.length === 0) return null;
 
@@ -236,7 +240,7 @@ export const HtmlOverlays = ({ rulerOffset = 0 }: Props) => {
       pointerEvents: 'none',
       zIndex: 10
     }}>
-      {htmlObjects.map(obj => {
+      {htmlObjects.map((obj: any) => {
         const isSelected = selectedIds.includes(obj.id);
         const x = obj.x * camera.scale + camera.x;
         const y = obj.y * camera.scale + camera.y;

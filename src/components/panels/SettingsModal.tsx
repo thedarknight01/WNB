@@ -7,7 +7,7 @@ export const SettingsModal = () => {
     labelFontFamily, labelFontSize, labelColor, labelFontStyle, setGridStyle 
   } = useSettingsStore();
 
-  const isDark = theme === 'dark';
+  const isDark = theme === 'dark' || theme === 'midnight';
 
   if (!isSettingsOpen) return null;
 

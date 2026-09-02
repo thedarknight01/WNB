@@ -1,29 +1,57 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Mention from '@tiptap/extension-mention';
 import FontFamily from '@tiptap/extension-font-family';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
-import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
-import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import TextAlign from '@tiptap/extension-text-align';
 import { Table } from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
+import { FontSize } from './FontSize';
 import { useSettingsStore } from '../../core/store/useSettingsStore';
 import { useBoardStore } from '../../core/store/useBoardStore';
+import { storeRegistry, useAppStore } from '../../core/store/useAppStore';
 import {
   Bold, Italic, Underline as UnderlineIcon, Heading1, Heading2, Heading3,
   List, ListOrdered, Table as TableIcon, Link as LinkIcon, Image as ImageIcon,
   AlignLeft, AlignCenter, AlignRight, Undo, Redo, Code, Quote,
   Strikethrough, Minus, Type, Baseline
 } from 'lucide-react';
-import { getSuggestionConfig } from './suggestion';
+import { getSuggestionConfig, getLabelSuggestionConfig } from './suggestion';
+import MentionExtension from '@tiptap/extension-mention';
+import Link from '@tiptap/extension-link';
+import Underline from '@tiptap/extension-underline';
+import { ReactNodeViewRenderer, Node } from '@tiptap/react';
+import { LiveDiagramRef } from './LiveDiagramRef';
 import './editor.css';
+
+const DiagramRefExtension = Node.create({
+  name: 'diagramRef',
+  group: 'block',
+  atom: true,
+  addAttributes() {
+    return {
+      id: { default: null },
+      label: { default: null },
+      docId: { default: null }
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'div[data-type="diagramRef"]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['div', { 'data-type': 'diagramRef', ...HTMLAttributes }];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(LiveDiagramRef);
+  },
+});
 
 // ----- Load Google Fonts from stored list on mount -----
 function loadSavedFonts(fonts: string[]) {
@@ -39,10 +67,15 @@ function loadSavedFonts(fonts: string[]) {
   });
 }
 
-export const NotebookEditor = () => {
+export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolbarSlotId: string }) => {
+  const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
   const { theme, customFonts } = useSettingsStore();
-  const { notebookContent, setNotebookContent, focusCameraOn } = useBoardStore();
-  const isDark = theme === 'dark';
+  const activeMenuTab = useAppStore(s => s.activeMenuTab);
+  const focusedTabId = useAppStore(s => s.focusedTabId);
+  const notebookContent = useBoardStore(s => s.notebookContent);
+  const setNotebookContent = useBoardStore(s => s.setNotebookContent);
+  const focusCameraOn = useBoardStore(s => s.focusCameraOn);
+  const isDark = theme === 'dark' || theme === 'midnight';
 
   // ---- State for inline dropdowns ----
   const [showLinkInput, setShowLinkInput] = useState(false);
@@ -60,22 +93,23 @@ export const NotebookEditor = () => {
   // Load ALL saved fonts on mount (fix: fonts lost on page reload)
   useEffect(() => {
     loadSavedFonts(customFonts);
-  }, []); // runs once on mount
+  }, [customFonts]);
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
-      Underline,
+      StarterKit.configure({ link: false, underline: false }),
       // Text color
       TextStyle,
       Color,
+      FontSize,
       // Highlight (single color via picker)
       Highlight.configure({ multicolor: true }),
       // Alignment — MUST be added explicitly
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       // Links & Images
-      Link.configure({ openOnClick: false, autolink: true }),
       Image.configure({ inline: false, allowBase64: true }),
+      Link.configure({ openOnClick: false }),
+      Underline,
       // Tables
       Table.configure({ resizable: true }),
       TableRow,
@@ -84,12 +118,32 @@ export const NotebookEditor = () => {
       // Mentions
       Mention.configure({
         HTMLAttributes: { class: 'mention-link' },
-        suggestion: getSuggestionConfig(),
+        suggestion: getSuggestionConfig(isDark),
         renderLabel({ node }: any) {
           return `↗ ${node.attrs.label || node.attrs.id}`;
         },
       }),
+      MentionExtension.extend({
+        name: 'labelMention',
+        addAttributes() {
+          return {
+            id: { default: null },
+            label: { default: null },
+            docId: {
+              default: null,
+              renderHTML: attributes => ({ 'data-doc-id': attributes.docId }),
+            },
+          };
+        },
+      }).configure({
+        HTMLAttributes: { class: 'mention-link', 'data-type': 'labelMention' },
+        suggestion: getLabelSuggestionConfig(isDark),
+        renderLabel({ node }: any) {
+          return `@${node.attrs.label || node.attrs.id}`;
+        },
+      }),
       FontFamily,
+      DiagramRefExtension,
     ],
     content: notebookContent,
     onUpdate: ({ editor }) => setNotebookContent(editor.getHTML()),
@@ -134,7 +188,20 @@ export const NotebookEditor = () => {
       const target = e.target as HTMLElement;
       if (target.classList.contains('mention-link')) {
         const id = target.getAttribute('data-id');
-        if (id) focusCameraOn(id);
+        const docId = target.getAttribute('data-doc-id') || target.getAttribute('docid');
+        if (id && docId) {
+          const appStore = useAppStore.getState();
+          appStore.openTab(docId);
+          appStore.setFocusedTab(docId);
+          const focusSource = () => {
+            const sourceStore = storeRegistry.get(docId);
+            if (sourceStore) sourceStore.getState().focusCameraOn(id);
+            else window.setTimeout(() => storeRegistry.get(docId)?.getState().focusCameraOn(id), 100);
+          };
+          focusSource();
+        } else if (id) {
+          focusCameraOn(id);
+        }
       }
     };
     const editorDom = document.querySelector('.tiptap');
@@ -197,10 +264,7 @@ export const NotebookEditor = () => {
   const currentTextColor = editor.getAttributes('textStyle').color || (isDark ? '#f8fafc' : '#0f172a');
   const currentHighlight = editor.getAttributes('highlight').color || '#fef08a';
 
-  return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-
-      {/* ===== TOOLBAR ===== */}
+  const toolbar = (
       <div style={{
         display: 'flex', flexWrap: 'wrap', gap: '2px', padding: '6px 8px',
         backgroundColor: isDark ? '#0f172a' : '#f8fafc',
@@ -213,13 +277,13 @@ export const NotebookEditor = () => {
         <button onClick={() => editor.chain().focus().redo().run()} style={btn(false)} title="Redo"><Redo size={14} /></button>
         <div style={sep} />
 
-        {/* Font Family — shows all loaded Google fonts */}
+        {/* Font Family */}
         <select
           onChange={(e) => {
             const f = e.target.value;
             if (f) editor.chain().focus().setFontFamily(f).run();
           }}
-          value={editor.getAttributes('textStyle').fontFamily || ""}
+          value={editor.getAttributes('textStyle').fontFamily || ''}
           title="Font Family"
           style={{
             background: isDark ? '#1e293b' : '#fff',
@@ -228,9 +292,35 @@ export const NotebookEditor = () => {
           }}
         >
           <option value="" disabled>Font</option>
+          <option value="Inter">Inter</option>
           {customFonts.map(font => (
             <option key={font} value={font} style={{ fontFamily: font }}>{font}</option>
           ))}
+        </select>
+
+        {/* Font Size */}
+        <select
+          onChange={(e) => {
+            const size = e.target.value;
+            if (size) editor.chain().focus().setFontSize(size).run();
+          }}
+          value={editor.getAttributes('textStyle').fontSize || ''}
+          title="Font Size"
+          style={{
+            background: isDark ? '#1e293b' : '#fff',
+            color: 'inherit', border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
+            borderRadius: '4px', padding: '3px 4px', fontSize: '0.75rem', outline: 'none', width: '50px',
+          }}
+        >
+          <option value="" disabled>Size</option>
+          <option value="12px">12</option>
+          <option value="14px">14</option>
+          <option value="16px">16</option>
+          <option value="18px">18</option>
+          <option value="20px">20</option>
+          <option value="24px">24</option>
+          <option value="30px">30</option>
+          <option value="36px">36</option>
         </select>
         <div style={sep} />
 
@@ -383,8 +473,30 @@ export const NotebookEditor = () => {
         </div>
 
       </div>
+  );
 
-      {/* ===== EDITOR ===== */}
+  const notebookToolbar = activeMenuTab === 'Property'
+    ? <div style={{ padding: '0 8px', color: isDark ? '#94a3b8' : '#64748b', fontSize: '0.75rem' }}>Notebook properties</div>
+    : toolbar;
+
+  useLayoutEffect(() => {
+    if (focusedTabId !== docId || typeof document === 'undefined') {
+      setToolbarTarget(null);
+      return;
+    }
+    const target = document.getElementById(toolbarSlotId);
+    if (target) {
+      setToolbarTarget(target);
+      return;
+    }
+    const frame = requestAnimationFrame(() => setToolbarTarget(document.getElementById(toolbarSlotId)));
+    return () => cancelAnimationFrame(frame);
+  }, [docId, focusedTabId, toolbarSlotId]);
+
+  return (
+    <>
+      {toolbarTarget ? createPortal(notebookToolbar, toolbarTarget) : null}
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div
         className="notebook-scroll"
         style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
@@ -392,6 +504,7 @@ export const NotebookEditor = () => {
       >
         <EditorContent editor={editor} />
       </div>
-    </div>
+      </div>
+    </>
   );
 };

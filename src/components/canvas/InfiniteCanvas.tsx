@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
 import { Stage, Layer, Rect, Transformer, Text, Line, Circle } from 'react-konva';
-import { useBoardStore } from '../../core/store/useBoardStore';
+import React from 'react'; import { useBoardStore, BoardContext } from '../../core/store/useBoardStore';
 import { useSettingsStore } from '../../core/store/useSettingsStore';
 import { BackgroundGrid } from './BackgroundGrid';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
@@ -11,28 +11,38 @@ import type { LineData, RectangleData, CircleData, TextData } from '../../types/
 import { ContextMenu } from '../panels/ContextMenu';
 import { CanvasRuler, RULER_SIZE } from './CanvasRuler';
 import { computeAlignmentGuides } from '../../hooks/useAlignmentGuides';
+import { useAppStore } from '../../core/store/useAppStore';
 
 
 const CanvasLabels = () => {
-  const { objectsById, objectIds } = useBoardStore();
+  const objectsById = useBoardStore(s => s.objectsById);
+  const objectIds = useBoardStore(s => s.objectIds);
   const { labelFontFamily, labelFontSize, labelColor, labelFontStyle } = useSettingsStore();
-  const objects = objectIds.map(id => objectsById[id]).filter(Boolean);
-  const labeledItems = objects.filter(o => o.label);
-  const uniqueLabels = [...new Set(labeledItems.map(o => o.label))];
+  const objects = objectIds.map((id: any) => objectsById[id]).filter(Boolean);
+  const groupedItems = new Map<string, any[]>();
+  objects.forEach((object: any) => {
+    if (object.parentId && object.groupLabel) {
+      const items = groupedItems.get(object.parentId) || [];
+      items.push(object);
+      groupedItems.set(object.parentId, items);
+    }
+  });
+  const labelEntries = [
+    ...Array.from(groupedItems.entries()).map(([id, items]) => ({ id, label: items[0].groupLabel, targets: items })),
+    ...objects.filter((object: any) => object.label && !object.parentId).map((object: any) => ({ id: object.id, label: object.label, targets: [object] })),
+  ];
 
   return (
     <>
-      {uniqueLabels.map((labelText) => {
+      {labelEntries.map(({ id, label: labelText, targets }) => {
         if (!labelText) return null;
-
-        const targets = labeledItems.filter(o => o.label === labelText);
 
         let minX = Infinity;
         let maxX = -Infinity;
         let maxY = -Infinity;
 
         // PERFECT BOUNDING BOX MATH
-        targets.forEach((o) => {
+        targets.forEach((o: any) => {
           let oMinX = o.x, oMaxX = o.x, oMaxY = o.y;
 
           if (o.type === 'rectangle' || o.type === 'image') {
@@ -69,11 +79,11 @@ const CanvasLabels = () => {
 
         return (
           <Text
-            key={`label-${labelText}`}
+            key={`label-${id}`}
             x={centerX - 150}
             y={maxY + 20} // Always rendered exactly 20 pixels below the lowest object in the group
             width={300}
-            text={labelText}
+            text={labelText as string}
             align="center"
             fontFamily={labelFontFamily}
             fontSize={labelFontSize}
@@ -88,15 +98,42 @@ const CanvasLabels = () => {
 };
 
 export const InfiniteCanvas = () => {
-  const {
-    camera, setCamera, tool, objectsById, objectIds, addObject, updateObject, removeObject,
-    addPointToLastLine, updateCurrentShape, selectedIds, setSelectedIds,
-    moveSelectedObjects, toast, showToast, saveHistory,
-    setContextMenu
-  } = useBoardStore();
+  const store = React.useContext(BoardContext)!;
+  const camera = useBoardStore(s => s.camera);
+  const setCamera = useBoardStore(s => s.setCamera);
+  const tool = useBoardStore(s => s.tool);
+  const objectsById = useBoardStore(s => s.objectsById);
+  const objectIds = useBoardStore(s => s.objectIds);
+  const addObject = useBoardStore(s => s.addObject);
+  const updateObject = useBoardStore(s => s.updateObject);
+  const removeObject = useBoardStore(s => s.removeObject);
+  const addPointToLastLine = useBoardStore(s => s.addPointToLastLine);
+  const updateCurrentShape = useBoardStore(s => s.updateCurrentShape);
+  const selectedIds = useBoardStore(s => s.selectedIds);
+  const setSelectedIds = useBoardStore(s => s.setSelectedIds);
+  const moveSelectedObjects = useBoardStore(s => s.moveSelectedObjects);
+  const toast = useBoardStore(s => s.toast);
+  const showToast = useBoardStore(s => s.showToast);
+  const saveHistory = useBoardStore(s => s.saveHistory);
+  const setContextMenu = useBoardStore(s => s.setContextMenu);
 
   const { backgroundColor, showRulers } = useSettingsStore();
-  const objects = objectIds.map(id => objectsById[id]).filter(Boolean);
+  const objects = objectIds.map((id: any) => objectsById[id]).filter(Boolean);
+  const getGroupIds = (object: any) => {
+    const rootId = object.parentId || object.id;
+    const ids = new Set<string>([rootId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      objects.forEach(candidate => {
+        if (candidate.parentId && ids.has(candidate.parentId) && !ids.has(candidate.id)) {
+          ids.add(candidate.id);
+          changed = true;
+        }
+      });
+    }
+    return objects.filter(candidate => ids.has(candidate.id)).map(candidate => candidate.id);
+  };
   const [isDrawing, setIsDrawing] = useState(false);
   const [editingText, setEditingText] = useState<{ id: string, x: number, y: number, text: string } | null>(null);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -105,19 +142,30 @@ export const InfiniteCanvas = () => {
   const [dragStartPos, setDragStartPos] = useState<{ x: number, y: number } | null>(null);
   const [isDraggingObjects, setIsDraggingObjects] = useState(false);
   const [guideLines, setGuideLines] = useState<{ id: string; x1: number; y1: number; x2: number; y2: number; type: 'h' | 'v' }[]>([]);
-  const [stageSize, setStageSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+  const [stageSize, setStageSize] = useState({ w: 1200, h: 800 });
 
   const stageRef = useRef<any>(null);
+  const stageContainerRef = useRef<HTMLDivElement>(null);
   const transformerRef = useRef<any>(null);
 
   // Initialize modular keyboard shortcuts
   useKeyboardShortcuts(!!editingText, setIsSpacePressed, setIsPanning);
 
-  // Track window size for rulers
   useEffect(() => {
-    const onResize = () => setStageSize({ w: window.innerWidth, h: window.innerHeight });
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    useAppStore.getState().setActiveMenuTab(selectedIds.length > 0 ? 'Property' : 'Insert');
+  }, [selectedIds]);
+
+  useEffect(() => {
+    const node = stageContainerRef.current;
+    if (!node) return;
+    const updateSize = () => {
+      const rect = node.getBoundingClientRect();
+      setStageSize({ w: Math.max(300, rect.width), h: Math.max(300, rect.height) });
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(node);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -170,7 +218,7 @@ export const InfiniteCanvas = () => {
       e.preventDefault();
       const files = Array.from(e.dataTransfer?.files || []).filter(f => f.type.startsWith('image/'));
       if (files.length === 0) return;
-      const { camera: cam } = useBoardStore.getState();
+      const { camera: cam } = (store as any)!.getState();
       files.forEach((file, i) => {
         const reader = new FileReader();
         reader.onload = (ev) => {
@@ -183,10 +231,10 @@ export const InfiniteCanvas = () => {
             const rect = container.getBoundingClientRect();
             const dropX = ((e.clientX - rect.left) - cam.x) / cam.scale + i * 20;
             const dropY = ((e.clientY - rect.top) - cam.y) / cam.scale + i * 20;
-            useBoardStore.getState().saveHistory();
-            useBoardStore.getState().addObject({
+            store.getState().saveHistory();
+            store.getState().addObject({
               id: `img-drop-${now}`, name: 'image', type: 'image',
-              zIndex: useBoardStore.getState().objectIds.length,
+              zIndex: store.getState().objectIds.length,
               x: dropX, y: dropY,
               rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, visible: true, locked: false, draggable: true,
               createdAt: now, updatedAt: now,
@@ -195,7 +243,7 @@ export const InfiniteCanvas = () => {
               height: img.height * (Math.min(img.width, 800) / img.width),
               shadowColor: 'rgba(0,0,0,0)', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0, shadowOpacity: 1
             } as any);
-            useBoardStore.getState().showToast(`Dropped: ${Math.round(img.width)}×${Math.round(img.height)}`);
+            store.getState().showToast(`Dropped: ${Math.round(img.width)}×${Math.round(img.height)}`);
           };
         };
         reader.readAsDataURL(file);
@@ -245,6 +293,7 @@ export const InfiniteCanvas = () => {
       const clickedOnEmpty = e.target === e.target.getStage();
       if (clickedOnEmpty) {
         setSelectedIds([]);
+        useAppStore.getState().setActiveMenuTab('Insert');
         setSelectionBox({ startX: pos.x, startY: pos.y, endX: pos.x, endY: pos.y });
       }
       return;
@@ -255,7 +304,7 @@ export const InfiniteCanvas = () => {
     const base = createBaseObject(tool, pos);
 
     if (tool === 'pen') addObject({ ...base, type: 'line', points: [0, 0], stroke: '#000000', strokeWidth: 3, tension: 0.5, lineCap: 'round', lineJoin: 'round' } as LineData);
-    else if (tool === 'arrow') addObject({ ...base, type: 'arrow', points: [0, 0, 0, 0], arrowType: useBoardStore.getState().defaultArrowType, stroke: '#000000', strokeWidth: 3, tension: 0 } as any);
+    else if (tool === 'arrow') addObject({ ...base, type: 'arrow', points: [0, 0, 0, 0], arrowType: (store as any)!.getState().defaultArrowType, stroke: '#000000', strokeWidth: 3, tension: 0 } as any);
     else if (tool === 'rectangle') addObject({ ...base, type: 'rectangle', width: 0, height: 0, fill: 'transparent', stroke: '#000000', strokeWidth: 3, cornerRadius: 0 } as RectangleData);
     else if (tool === 'circle') addObject({ ...base, type: 'circle', radius: 0, fill: 'transparent', stroke: '#000000', strokeWidth: 3 } as CircleData);
     else if (tool === 'text') {
@@ -269,7 +318,7 @@ export const InfiniteCanvas = () => {
       setEditingText({ id: textId, x: pos.x, y: pos.y, text: 'Text' }); 
       
       // If the text tool wasn't double-clicked (locked), instantly revert to the Select tool
-      const state = useBoardStore.getState();
+      const state = (store as any)!.getState();
       if (!state.isToolLocked) {
         state.setTool('select');
       }
@@ -298,7 +347,7 @@ export const InfiniteCanvas = () => {
         right: (stageSize.w - camera.x) / camera.scale,
         bottom: (stageSize.h - camera.y) / camera.scale,
       };
-      const result = computeAlignmentGuides(selectedIds, useBoardStore.getState().objectsById, objectIds, viewBounds);
+      const result = computeAlignmentGuides(selectedIds, (store as any)!.getState().objectsById, objectIds, viewBounds);
       setGuideLines(result.guides);
       return;
     }
@@ -325,13 +374,13 @@ export const InfiniteCanvas = () => {
       const boxW = Math.abs(selectionBox.startX - selectionBox.endX);
       const boxH = Math.abs(selectionBox.startY - selectionBox.endY);
 
-      const newSelectedIds = objects.filter((obj) => obj.x >= boxX && obj.x <= boxX + boxW && obj.y >= boxY && obj.y <= boxY + boxH).map(o => o.id);
+      const newSelectedIds = objects.filter((obj) => obj.x >= boxX && obj.x <= boxX + boxW && obj.y >= boxY && obj.y <= boxY + boxH).map((o: any) => o.id);
       setSelectedIds(e.evt.shiftKey ? [...new Set([...selectedIds, ...newSelectedIds])] : newSelectedIds);
       setSelectionBox(null);
     }
     setIsDrawing(false);
     setIsPanning(false);
-    const state = useBoardStore.getState();
+    const state = (store as any)!.getState();
     if (!state.isToolLocked && tool !== 'select' && tool !== 'pan' && tool !== 'text') {
       state.setTool('select');
     }
@@ -350,6 +399,32 @@ export const InfiniteCanvas = () => {
     setCamera({ x: pointer.x - mousePointTo.x * newScale, y: pointer.y - mousePointTo.y * newScale, scale: newScale });
     if (editingText) setEditingText(null);
   };
+
+  const lastDistRef = useRef<number>(0);
+  
+  const handleTouchMove = (e: any) => {
+    const touch1 = e.evt.touches[0];
+    const touch2 = e.evt.touches[1];
+    if (touch1 && touch2) {
+      e.evt.preventDefault();
+      const stage = stageRef.current;
+      if (!stage) return;
+      const dist = Math.sqrt(Math.pow(touch2.clientX - touch1.clientX, 2) + Math.pow(touch2.clientY - touch1.clientY, 2));
+      if (!lastDistRef.current) { lastDistRef.current = dist; return; }
+      const oldScale = stage.scaleX();
+      const scaleBy = dist / lastDistRef.current;
+      let newScale = Math.max(0.05, Math.min(oldScale * scaleBy, 10));
+      const center = { x: (touch1.clientX + touch2.clientX) / 2, y: (touch1.clientY + touch2.clientY) / 2 };
+      const stageRect = stageContainerRef.current?.getBoundingClientRect();
+      if(!stageRect) return;
+      const pointer = { x: center.x - stageRect.left - (showRulers ? 24 : 0), y: center.y - stageRect.top - (showRulers ? 24 : 0) };
+      const mousePointTo = { x: (pointer.x - stage.x()) / oldScale, y: (pointer.y - stage.y()) / oldScale };
+      setCamera({ x: pointer.x - mousePointTo.x * newScale, y: pointer.y - mousePointTo.y * newScale, scale: newScale });
+      lastDistRef.current = dist;
+    }
+  };
+
+  const handleTouchEnd = () => { lastDistRef.current = 0; };
 
   const getCursor = () => {
     if (isSpacePressed || tool === 'pan') return isPanning ? 'grabbing' : 'grab';
@@ -391,6 +466,7 @@ export const InfiniteCanvas = () => {
         />
       )}
 
+      <div ref={stageContainerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
       <Stage
         ref={stageRef}
         width={stageSize.w - rulerOffset}
@@ -404,10 +480,11 @@ export const InfiniteCanvas = () => {
         }}
         onContextMenu={(e) => e.evt.preventDefault()}
         onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
+        onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
         draggable={tool === 'pan' && !isSpacePressed} x={camera.x} y={camera.y} scaleX={camera.scale} scaleY={camera.scale}
         onDragMove={(e) => { if (tool === 'pan' && e.target === stageRef.current) setCamera({ x: e.target.x(), y: e.target.y(), scale: camera.scale }); }}
       >
-        <BackgroundGrid />
+        <BackgroundGrid width={stageSize.w} height={stageSize.h} />
         <Layer>
           {objects.slice().sort((a, b) => a.zIndex - b.zIndex).map((obj) => {
             const isSelected = selectedIds.includes(obj.id);
@@ -448,11 +525,28 @@ export const InfiniteCanvas = () => {
                 }
               },
               onMouseDown: (e: any) => {
+                if (e.evt.button === 0 && tool !== 'eraser' && tool !== 'text') {
+                  e.cancelBubble = true;
+                  const groupIds = getGroupIds(obj);
+                  if (tool !== 'select') (store as any).getState().setTool('select');
+                  setSelectedIds(e.evt.shiftKey
+                    ? (selectedIds.includes(obj.id)
+                      ? selectedIds.filter(id => !groupIds.includes(id))
+                      : [...new Set([...selectedIds, ...groupIds])])
+                    : groupIds);
+                  useAppStore.getState().setActiveMenuTab('Property');
+                  if (tool === 'select' && selectedIds.includes(obj.id) && !e.evt.shiftKey) {
+                    saveHistory();
+                    setDragStartPos(getCanvasCoordinates());
+                    setIsDraggingObjects(true);
+                  }
+                  return;
+                }
                 if (e.evt.button === 2) {
                   e.cancelBubble = true;
                   if (!isSelected) {
                     // FIXED: o.parentId instead of o.groupId
-                    const groupIds = obj.parentId ? objects.filter(o => o.parentId === obj.parentId).map(o => o.id) : [obj.id];
+                    const groupIds = getGroupIds(obj);
                     setSelectedIds(groupIds);
                   }
                   setContextMenu({
@@ -469,14 +563,14 @@ export const InfiniteCanvas = () => {
                 }
                 if (tool === 'text' && obj.type === 'text') {
                   e.cancelBubble = true;
-                  useBoardStore.getState().saveHistory();
+                  (store as any)!.getState().saveHistory();
                   setEditingText({ id: obj.id, x: obj.x, y: obj.y, text: (obj as TextData).text });
-                  useBoardStore.getState().setTool('select');
+                  (store as any)!.getState().setTool('select');
                   return;
                 }
                 if (tool === 'select') {
                   e.cancelBubble = true;
-                  const groupIds = obj.parentId ? objects.filter(o => o.parentId === obj.parentId).map(o => o.id) : [obj.id];
+                  const groupIds = getGroupIds(obj);
 
                   if (e.evt.shiftKey) {
                     setSelectedIds(isSelected ? selectedIds.filter(id => !groupIds.includes(id)) : [...new Set([...selectedIds, ...groupIds])]);
@@ -574,6 +668,7 @@ export const InfiniteCanvas = () => {
           ))}
         </Layer>
       </Stage>
+      </div>
 
       {editingText && <TextInputOverlay editingText={editingText} setEditingText={setEditingText} camera={camera} />}
       <HtmlOverlays rulerOffset={rulerOffset} />

@@ -9,7 +9,7 @@ interface MentionListProps {
 export const MentionList = forwardRef((props: MentionListProps, ref) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { theme } = useSettingsStore();
-  const isDark = theme === 'dark';
+  const isDark = theme === 'dark' || theme === 'midnight';
 
   useEffect(() => setSelectedIndex(0), [props.items]);
 

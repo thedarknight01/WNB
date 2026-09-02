@@ -1,202 +1,64 @@
-# 🪐 WNB 
-> **Think visually. Write deeply. Keep everything in one workspace.**
+# WBN Studio
 
-WNB is a modern, browser-based workspace designed for thinking, organizing, and creating. It merges visual and structured thought by combining a flexible infinite canvas with a powerful rich-text notebook, allowing ideas, notes, and visual elements to coexist seamlessly.
+**A local-first, infinitely-scalable whiteboard + notebook workspace built with React, Konva, and TipTap.**
 
-[![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/thedarknight01/WNB)
-[![Status](https://img.shields.io/badge/Status-Active-success)](#-project-status)
-
----
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Version](https://img.shields.io/badge/version-1.0.0-green)
 
 ## ✨ Features
 
-### 🖼️ Infinite Canvas
-*   **Infinite/Pannable Workspace:** Fluid zoom and intuitive navigation.
-*   **High-Performance Rendering:** Smooth, canvas-based engine powered by Konva.
-*   **Rich Interactivity:** Interactive objects, shapes, selection, and manipulation.
-*   **Advanced Controls:** Context menus and a dedicated properties panel.
-*   **Hybrid Rendering:** HTML overlays for richer interactions and canvas-native text editing.
-
-### 📝 Integrated Notebook
-WNB includes a robust rich-text notebook powered by Tiptap, supporting:
-*   Headings, standard rich text (Bold, Italic, Underline), and alignment.
-*   Text colors, highlighting, and custom font families.
-*   Links, images, and tables.
-*   Mentions and autocomplete capabilities.
-*   Structured document editing.
-
-### 💾 Local-First Storage
-WNB is designed around browser-side persistence using **IndexedDB**. It stores all workspace data locally without requiring a traditional backend, ensuring your work is always fast, private, and available offline.
-
----
-
-## 🛠️ Tech Stack
-
-| Technology | Purpose |
-| :--- | :--- |
-| **React 19** | Core UI library |
-| **TypeScript** | Type safety and developer experience |
-| **Vite** | Modern build tooling and development server |
-| **Zustand** | Lightweight state management |
-| **Konva / React-Konva** | High-performance canvas rendering engine |
-| **Tiptap** | Extensible rich-text editor framework |
-| **Framer Motion** | Declarative animations and gestures |
-| **Lucide React** | Clean and consistent icon set |
-| **Tippy.js** | Accessible tooltips and popovers |
-| **IndexedDB (via `idb`)** | Client-side database for local-first storage |
-| **Oxlint** | High-performance linter for code quality |
-
----
+- **Infinite Whiteboard** — Powered by Konva.js. Draw shapes, connect diagrams, embed media.
+- **Structured Notebook** — Full TipTap rich text editor with tables, highlights, and links.
+- **Split View** — View and edit a whiteboard and notebook side-by-side.
+- **Magic Tags (`@`)** — Reference a labeled whiteboard element directly inside your notebook.
+- **Local-First** — All data saved to IndexedDB instantly. Works completely offline.
+- **WNB3 Encryption** — Exported `.wnb` files are GZIP-compressed and AES-256-GCM encrypted.
+- **Optional Master Password** — Strengthen your encryption with a personal session password.
+- **Cloud Sync (Optional)** — Connect a Supabase project for cross-device sync.
+- **Multi-tab Workspace** — Work on multiple boards/notebooks simultaneously.
 
 ## 🚀 Getting Started
 
-### Prerequisites
-Make sure you have **Node.js** and **npm** installed on your system.
+```bash
+# Install dependencies
+npm install
 
-### Installation
+# Start development server
+npm run dev
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/thedarknight01/WNB.git
-   ```
-2. **Enter the project directory:**
-   ```bash
-   cd WNB
-   ```
-3. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-4. **Start the development server:**
-   ```bash
-   npm run dev
-   ```
-   *Vite will provide a local development URL in your terminal.*
-
----
-
-## 📦 Project Scripts
-
-*   `npm run dev` — Starts the Vite development server.
-*   `npm run build` — Creates an optimized production build.
-*   `npm run preview` — Serves the production build locally for testing.
-*   `npm run lint` — Runs Oxlint to analyze the codebase for errors and style issues.
-
----
-
-## 🧠 Core Concept
-
-Instead of keeping visual ideas and written notes in separate applications, WNB aims to provide a single, unified workspace.
-
-```text
-                 WNB
-                  │
-        ┌─────────┴─────────┐
-        │                   │
-        ▼                   ▼
-   Infinite Canvas       Notebook
- (Visual Thinking)   (Structured Notes)
-        │                   │
-        └─────────┬─────────┘
-                  │
-                  ▼
-          Unified Workspace
+# Build for production
+npm run build
 ```
 
-### Data Architecture
-Data persists strictly in the browser, flowing from UI interactions to Zustand, and ultimately safely to IndexedDB.
+## ☁️ Cloud Sync Setup (Optional)
 
-```text
- [User Input] ──► [React UI] ──► [Zustand Store] ──┬──► [UI Updates]
-                                                   └──► [IndexedDB]
-```
+1. Create a free project at [supabase.com](https://supabase.com)
+2. Go to **Settings → API** and copy your **Project URL** and **Anon Public Key**
+3. In WBN Studio, open **Settings → Sync & Data** and paste your keys
+4. Open the **Setup DB** dialog, copy the SQL, and run it in your [Supabase SQL Editor](https://supabase.com/dashboard)
+5. Click **Verify Connection** — you're done!
 
----
+## 🔒 Security Model
 
-## 🏗️ Project Structure
+| Layer | Mechanism |
+|---|---|
+| Local Storage | IndexedDB (browser-native, sandboxed) |
+| Exported Backups | AES-256-GCM + PBKDF2 (120k iterations) + GZIP |
+| Master Password | Memory-only (never saved to localStorage) |
+| Cloud Data | Anon key via Supabase RLS-disabled table (data is pre-encrypted) |
+| Font Name XSS | Input validated against `^[a-zA-Z0-9\s-]+$` |
 
-The application is organized around modular layers separating the canvas logic from the notebook and core state.
+## 🛠 Tech Stack
 
-```text
-WNB/
-├── public/
-│   ├── favicon.svg
-│   └── icons.svg
-├── src/
-│   ├── components/
-│   │   ├── canvas/       # Konva, Grid, Shapes, Overlays
-│   │   ├── notebook/     # Tiptap Editor, Mentions
-│   │   └── panels/       # Context Menus, Settings, Ribbons
-│   ├── core/
-│   │   └── store/        # Zustand (useBoardStore, useSettingsStore)
-│   ├── hooks/
-│   ├── types/
-│   ├── utils/
-│   ├── App.tsx
-│   ├── index.css
-│   └── main.tsx
-├── index.html
-├── package.json
-└── vite.config.ts
-```
-
----
-
-## ⌨️ Keyboard Shortcuts
-WNB provides intuitive keyboard interactions to support fast, keyboard-driven workflows. *(Comprehensive shortcut documentation will be added as the command system is finalized).*
-
----
-
-## 🎯 Project Goals & Philosophy
-
-1.  **Visual thinking:** Provide a flexible canvas for ideas and information.
-2.  **Structured thinking:** Provide a powerful notebook for detailed writing.
-3.  **Local-first workflow:** Keep core workspace data available safely in the browser.
-4.  **Responsive interaction:** Make common operations feel natural and fast.
-5.  **Extensible architecture:** Easily add new object types and features without rewrites.
-
-**Development Philosophy:** 
-WNB is developed incrementally to maintain a rock-solid foundation:
-`Understand ➔ Design ➔ Implement ➔ Test ➔ Improve ➔ Document ➔ Release`
-
----
-
-## 🗺️ Roadmap (WNB v2)
-
-The current development phase is focused on reinforcing the application's foundation.
-
-**Core**
-- [ ] Architecture cleanup & stronger data model
-- [ ] Reliable persistence & error recovery
-- [ ] Undo/redo improvements
-
-**Canvas**
-- [ ] Better multi-selection, copy/paste, and object duplication
-- [ ] Improved zoom, navigation, and rendering performance for large boards
-- [ ] Additional object types
-
-**Notebook & UX**
-- [ ] Improved editor UX and Canvas ↔ Notebook integration
-- [ ] Enhanced toolbars, properties panels, and context menus
-- [ ] Command/shortcut system implementation
-- [ ] Accessibility improvements, empty states, and loading/error states
-
-**Quality Control**
-- [ ] Unit, integration, and performance testing
-- [ ] CI checks & developer documentation
-
----
-
-## 🤝 Contributing
-Contributions, ideas, bug reports, and feedback are highly welcome! 
-Before making significant changes, please open an issue to discuss your proposed updates.
-
----
-
-## 📌 Project Status
-WNB is under **active development** and evolving toward a more stable, feature-complete v2 architecture. *Please note: APIs, internal data structures, UI behaviors, and features may change as development continues.*
-
----
+- **React 19** + TypeScript
+- **Konva.js / react-konva** — Canvas rendering
+- **TipTap** — Rich text editing
+- **Zustand** — State management
+- **idb** — IndexedDB wrapper
+- **Supabase** — Optional cloud backend
+- **Framer Motion** — Animations
+- **Vite** — Build tooling
 
 ## 📄 License
-WNB is distributed under the license included in this repository. See `LICENSE` for the complete text.
+
+MIT © WBN Studio
