@@ -5,14 +5,20 @@ import { InfiniteCanvas } from '../canvas/InfiniteCanvas';
 import { NotebookPanel } from '../notebook/NotebookPanel';
 import { storeRegistry, useAppStore } from '../../core/store/useAppStore';
 
+
+
 const DocumentContent = ({ type, docId }: { type: 'whiteboard' | 'notebook'; docId: string }) => {
-  if (type === 'notebook') {
-    return <NotebookPanel docId={docId} toolbarSlotId="notebook-toolbar-slot" />;
-  }
+  const toolbarSlotId = `global-toolbar-slot`;
   
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, position: 'relative', overflow: 'hidden' }}>
-      <InfiniteCanvas />
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', height: '100%' }}>
+      {type === 'notebook' ? (
+        <NotebookPanel docId={docId} toolbarSlotId={toolbarSlotId} />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, position: 'relative', overflow: 'hidden' }}>
+          <InfiniteCanvas />
+        </div>
+      )}
     </div>
   );
 };

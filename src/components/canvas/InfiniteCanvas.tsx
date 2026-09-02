@@ -400,6 +400,32 @@ export const InfiniteCanvas = () => {
     if (editingText) setEditingText(null);
   };
 
+  const lastDistRef = useRef<number>(0);
+  
+  const handleTouchMove = (e: any) => {
+    const touch1 = e.evt.touches[0];
+    const touch2 = e.evt.touches[1];
+    if (touch1 && touch2) {
+      e.evt.preventDefault();
+      const stage = stageRef.current;
+      if (!stage) return;
+      const dist = Math.sqrt(Math.pow(touch2.clientX - touch1.clientX, 2) + Math.pow(touch2.clientY - touch1.clientY, 2));
+      if (!lastDistRef.current) { lastDistRef.current = dist; return; }
+      const oldScale = stage.scaleX();
+      const scaleBy = dist / lastDistRef.current;
+      let newScale = Math.max(0.05, Math.min(oldScale * scaleBy, 10));
+      const center = { x: (touch1.clientX + touch2.clientX) / 2, y: (touch1.clientY + touch2.clientY) / 2 };
+      const stageRect = stageContainerRef.current?.getBoundingClientRect();
+      if(!stageRect) return;
+      const pointer = { x: center.x - stageRect.left - (showRulers ? 24 : 0), y: center.y - stageRect.top - (showRulers ? 24 : 0) };
+      const mousePointTo = { x: (pointer.x - stage.x()) / oldScale, y: (pointer.y - stage.y()) / oldScale };
+      setCamera({ x: pointer.x - mousePointTo.x * newScale, y: pointer.y - mousePointTo.y * newScale, scale: newScale });
+      lastDistRef.current = dist;
+    }
+  };
+
+  const handleTouchEnd = () => { lastDistRef.current = 0; };
+
   const getCursor = () => {
     if (isSpacePressed || tool === 'pan') return isPanning ? 'grabbing' : 'grab';
     if (tool === 'select') return 'default';
@@ -454,6 +480,7 @@ export const InfiniteCanvas = () => {
         }}
         onContextMenu={(e) => e.evt.preventDefault()}
         onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
+        onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
         draggable={tool === 'pan' && !isSpacePressed} x={camera.x} y={camera.y} scaleX={camera.scale} scaleY={camera.scale}
         onDragMove={(e) => { if (tool === 'pan' && e.target === stageRef.current) setCamera({ x: e.target.x(), y: e.target.y(), scale: camera.scale }); }}
       >

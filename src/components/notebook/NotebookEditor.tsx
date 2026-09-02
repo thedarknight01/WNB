@@ -27,7 +27,31 @@ import { getSuggestionConfig, getLabelSuggestionConfig } from './suggestion';
 import MentionExtension from '@tiptap/extension-mention';
 import Link from '@tiptap/extension-link';
 import Underline from '@tiptap/extension-underline';
+import { ReactNodeViewRenderer, Node } from '@tiptap/react';
+import { LiveDiagramRef } from './LiveDiagramRef';
 import './editor.css';
+
+const DiagramRefExtension = Node.create({
+  name: 'diagramRef',
+  group: 'block',
+  atom: true,
+  addAttributes() {
+    return {
+      id: { default: null },
+      label: { default: null },
+      docId: { default: null }
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'div[data-type="diagramRef"]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['div', { 'data-type': 'diagramRef', ...HTMLAttributes }];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(LiveDiagramRef);
+  },
+});
 
 // ----- Load Google Fonts from stored list on mount -----
 function loadSavedFonts(fonts: string[]) {
@@ -48,7 +72,9 @@ export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolba
   const { theme, customFonts } = useSettingsStore();
   const activeMenuTab = useAppStore(s => s.activeMenuTab);
   const focusedTabId = useAppStore(s => s.focusedTabId);
-  const { notebookContent, setNotebookContent, focusCameraOn } = useBoardStore(s => ({ notebookContent: s.notebookContent, setNotebookContent: s.setNotebookContent, focusCameraOn: s.focusCameraOn }));
+  const notebookContent = useBoardStore(s => s.notebookContent);
+  const setNotebookContent = useBoardStore(s => s.setNotebookContent);
+  const focusCameraOn = useBoardStore(s => s.focusCameraOn);
   const isDark = theme === 'dark' || theme === 'midnight';
 
   // ---- State for inline dropdowns ----
@@ -117,6 +143,7 @@ export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolba
         },
       }),
       FontFamily,
+      DiagramRefExtension,
     ],
     content: notebookContent,
     onUpdate: ({ editor }) => setNotebookContent(editor.getHTML()),
@@ -256,7 +283,7 @@ export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolba
             const f = e.target.value;
             if (f) editor.chain().focus().setFontFamily(f).run();
           }}
-          value=""
+          value={editor.getAttributes('textStyle').fontFamily || ''}
           title="Font Family"
           style={{
             background: isDark ? '#1e293b' : '#fff',
@@ -265,6 +292,7 @@ export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolba
           }}
         >
           <option value="" disabled>Font</option>
+          <option value="Inter">Inter</option>
           {customFonts.map(font => (
             <option key={font} value={font} style={{ fontFamily: font }}>{font}</option>
           ))}
@@ -276,7 +304,7 @@ export const NotebookEditor = ({ docId, toolbarSlotId }: { docId: string; toolba
             const size = e.target.value;
             if (size) editor.chain().focus().setFontSize(size).run();
           }}
-          value=""
+          value={editor.getAttributes('textStyle').fontSize || ''}
           title="Font Size"
           style={{
             background: isDark ? '#1e293b' : '#fff',

@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useSettingsStore } from './core/store/useSettingsStore';
 import { getActiveStore, useAppStore } from './core/store/useAppStore';
-import { BoardContext } from './core/store/useBoardStore';
+
 import { SettingsDashboard } from './components/panels/SettingsDashboard';
 import { TabBar } from './components/layout/TabBar';
 import { DocumentProvider } from './components/layout/DocumentProvider';
 import { GlobalMenu } from './components/panels/GlobalMenu';
 import { ContextualToolbar } from './components/panels/ContextualToolbar';
+import { BoardContext } from './core/store/useBoardStore';
 import { Trash2 } from 'lucide-react';
 import { HomePage } from './pages/HomePage';
 import { DocumentationPage } from './pages/DocumentationPage';
+import { AboutPage } from './pages/AboutPage';
+import { PolicyPage } from './pages/PolicyPage';
+
 
 function App() {
   const { theme } = useSettingsStore();
@@ -17,10 +21,16 @@ function App() {
   const [, refreshFocusedStore] = useState(0);
   const focusedStore = getActiveStore();
   const isDark = theme === 'dark' || theme === 'midnight';
-  const pathname = window.location.pathname;
+  const pathname = window.location.hash.replace('#', '') || '/';
 
   const [isResizing, setIsResizing] = useState(false);
   const [splitRatio, setSplitRatio] = useState(50); // percentage
+
+  useEffect(() => {
+    const handleHashChange = () => refreshFocusedStore(v => v + 1);
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   useEffect(() => {
     loadDocuments();
@@ -54,14 +64,19 @@ function App() {
 
   if (pathname === '/') return <HomePage />;
   if (pathname === '/doc') return <DocumentationPage />;
+  if (pathname === '/about') return <AboutPage />;
+  if (pathname === '/policy') return <PolicyPage />;
+  if (pathname !== '/board') {
+    return <HomePage />;
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', margin: 0, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', margin: 0, overflow: 'hidden' }}>
       <SettingsDashboard />
       <GlobalMenu />
       {focusedStore && (
         <BoardContext.Provider value={focusedStore}>
-          <ContextualToolbar key={focusedTabId || 'active'} toolbarSlotId="notebook-toolbar-slot" />
+          <ContextualToolbar key={focusedTabId || 'active'} toolbarSlotId="global-toolbar-slot" />
         </BoardContext.Provider>
       )}
       <div 
@@ -76,9 +91,9 @@ function App() {
           onMouseDownCapture={() => useAppStore.getState().setFocusedTab(activeTabId)}
           style={{ 
           display: 'flex', flexDirection: 'column', 
-          width: isSplitViewOpen ? `calc(${splitRatio}% - 2px)` : '100%',
-          flexShrink: 0,
-          pointerEvents: isResizing ? 'none' : 'auto', overflow: 'hidden'
+          width: isSplitViewOpen ? `${splitRatio}%` : '100%',
+          flexShrink: 0, minWidth: 0, overflow: 'hidden',
+          pointerEvents: isResizing ? 'none' : 'auto'
         }}>
           <TabBar pane="main" />
           {!isDocumentsLoaded ? (
@@ -160,8 +175,8 @@ function App() {
             onMouseDownCapture={() => useAppStore.getState().setFocusedTab(splitTabId)}
             style={{ 
             display: 'flex', flexDirection: 'column', 
-            flex: 1, minWidth: 0,
-            pointerEvents: isResizing ? 'none' : 'auto', overflow: 'hidden',
+            width: `calc(${100 - splitRatio}% - 4px)`, flexShrink: 0, minWidth: 0, overflow: 'hidden',
+            pointerEvents: isResizing ? 'none' : 'auto',
             borderLeft: isDark ? '1px solid #0f172a' : '1px solid #cbd5e1'
           }}>
             <TabBar pane="split" />

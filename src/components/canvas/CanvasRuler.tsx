@@ -127,14 +127,15 @@ function drawVerticalRuler(
     ctx.strokeStyle = isDark ? '#475569' : '#94a3b8';
     ctx.lineWidth = 0.5;
     ctx.beginPath();
-    ctx.moveTo(w, screenY + 0.5);
-    ctx.lineTo(w - tickW, screenY + 0.5);
+    ctx.moveTo(w - tickW, screenY + 0.5);
+    ctx.lineTo(w, screenY + 0.5);
     ctx.stroke();
 
     if (isMajor) {
       ctx.save();
-      ctx.translate(w - 2, screenY + 2);
+      ctx.translate(w - 6, screenY + 2);
       ctx.rotate(-Math.PI / 2);
+      ctx.textBaseline = 'middle';
       ctx.fillText(Math.round(val).toString(), 0, 0);
       ctx.restore();
     }

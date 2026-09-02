@@ -1,5 +1,5 @@
 import { createStore, useStore } from 'zustand';
-import { useShallow } from 'zustand/react/shallow';
+
 import { createContext, useContext } from 'react';
 import { encryptData, decryptData } from '../../utils/encryption';
 import type { BoardObject, LineData, RectangleData, CircleData, ImageData } from '../../types/objects';
@@ -447,9 +447,9 @@ export const createBoardStore = (doc: DocumentData) => {
     if (state.objectsById !== prevState.objectsById || state.notebookContent !== prevState.notebookContent) {
       
       // Do not save completely empty documents
-      const isEmptyWhiteboard = state.docType === 'whiteboard' && state.objectIds.length === 0;
-      const isEmptyNotebook = state.docType === 'notebook' && (state.notebookContent === '<h1>New Note</h1>' || state.notebookContent.trim() === '');
-      if (isEmptyWhiteboard || isEmptyNotebook) return;
+      
+      
+      
 
       if (saveTimer) clearTimeout(saveTimer);
       const snapshot = {
@@ -497,6 +497,5 @@ export const BoardContext = createContext<ReturnType<typeof createBoardStore> | 
 export function useBoardStore<T>(selector: (state: BoardState) => T): T {
   const store = useContext(BoardContext);
   if (!store) throw new Error('Missing BoardContext.Provider in the tree');
-  // useShallow ensures object selectors use shallow equality, preventing infinite loops
-  return useStore(store, useShallow(selector));
+  return useStore(store, selector);
 }

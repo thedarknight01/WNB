@@ -14,15 +14,13 @@ export const PropertiesPanel = () => {
   const { theme, customFonts } = useSettingsStore();
   const store = useContext(BoardContext);
   if (!store) return null;
-  const { objectsById, selectedIds, updateObject, bringToFront, sendToBack, groupSelected, ungroupSelected } = useBoardStore(state => ({
-    objectsById: state.objectsById,
-    selectedIds: state.selectedIds,
-    updateObject: state.updateObject,
-    bringToFront: state.bringToFront,
-    sendToBack: state.sendToBack,
-    groupSelected: state.groupSelected,
-    ungroupSelected: state.ungroupSelected
-  }));
+  const objectsById = useBoardStore(s => s.objectsById);
+  const selectedIds = useBoardStore(s => s.selectedIds);
+  const updateObject = useBoardStore(s => s.updateObject);
+  const bringToFront = useBoardStore(s => s.bringToFront);
+  const sendToBack = useBoardStore(s => s.sendToBack);
+  const groupSelected = useBoardStore(s => s.groupSelected);
+  const ungroupSelected = useBoardStore(s => s.ungroupSelected);
   const isDark = theme === 'dark' || theme === 'midnight';
 
   if (selectedIds.length === 0) return null;

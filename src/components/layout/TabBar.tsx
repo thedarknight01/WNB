@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useAppStore } from '../../core/store/useAppStore';
 import { useSettingsStore } from '../../core/store/useSettingsStore';
 import {
-  X, Plus, FileText, LayoutDashboard, Columns,
+  X, Plus, FileText, Cloud, LayoutDashboard, Columns,
   ChevronDown, Pencil, Copy
 } from 'lucide-react';
 
@@ -137,7 +137,10 @@ export const TabBar = ({ pane = 'main' }: { pane?: 'main' | 'split' }) => {
                   style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'inherit', fontSize: 'inherit', fontWeight: 'inherit', padding: 0, minWidth: 0 }}
                 />
               ) : (
-                <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.title}</span>
+                <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {doc.title}
+                  {doc.isCloudLinked && <span title="Synced to Cloud" style={{ display: 'flex' }}><Cloud size={10} color="#10b981" /></span>}
+                </span>
               )}
               {isSplit && !isActive && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#8b5cf6', flexShrink: 0 }} />}
               {(isActive || isHovered) && (

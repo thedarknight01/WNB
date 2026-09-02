@@ -22,3 +22,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Security: Never commit secrets or env files
+.env
+.env.*
+*.env
+secrets.*
+
+# Build helper scripts (one-off migration scripts)
+*.cjs
+fix_*.cjs
+update*.cjs
+remove*.cjs
+add*.cjs

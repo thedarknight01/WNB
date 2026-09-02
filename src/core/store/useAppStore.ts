@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { getDocuments, saveDocument, deleteDocument, type DocumentMeta, type DocumentData } from './idb';
+import { getDocuments, getDocument, saveDocument, deleteDocument, type DocumentMeta, type DocumentData } from './idb';
 import type { StoreApi } from 'zustand';
 
 export interface AppState {
@@ -45,13 +45,37 @@ export const useAppStore = create<AppState>()(
 
       loadDocuments: async () => {
         const docs = await getDocuments();
-        const validIds = new Set(docs.map(doc => doc.id));
         const persisted = get();
+        const cleanedDocs = [];
+        
+        for (const meta of docs) {
+          const isDefaultTitle = !!meta.title.match(/^(Notebook|Whiteboard) \d+$/);
+          let isEmpty = false;
+          
+          if (isDefaultTitle && !persisted.tabs.includes(meta.id) && !persisted.splitTabs.includes(meta.id)) {
+            const fullDoc = await getDocument(meta.id);
+            if (fullDoc) {
+              if (meta.type === 'whiteboard') {
+                isEmpty = !fullDoc.data?.objectIds || fullDoc.data.objectIds.length === 0;
+              } else {
+                isEmpty = !fullDoc.data?.notebookContent || fullDoc.data.notebookContent === '<h1>New Note</h1>' || fullDoc.data.notebookContent === '<p></p>';
+              }
+            }
+          }
+          
+          if (isDefaultTitle && isEmpty && !persisted.tabs.includes(meta.id) && !persisted.splitTabs.includes(meta.id)) {
+            await deleteDocument(meta.id);
+          } else {
+            cleanedDocs.push(meta);
+          }
+        }
+        
+        const validIds = new Set(cleanedDocs.map(doc => doc.id));
         const tabs = persisted.tabs.filter(id => validIds.has(id));
         const splitTabs = persisted.isSplitViewOpen ? persisted.splitTabs.filter(id => validIds.has(id)) : [];
         const activeTabId = tabs.includes(persisted.activeTabId || '') ? persisted.activeTabId : tabs[0] || null;
         const splitTabId = splitTabs.includes(persisted.splitTabId || '') ? persisted.splitTabId : splitTabs[0] || null;
-        set({ documents: docs, tabs, splitTabs, activeTabId, splitTabId: splitTabs.length > 0 ? splitTabId : null, isSplitViewOpen: splitTabs.length > 0, focusedTabId: activeTabId, isDocumentsLoaded: true });
+        set({ documents: cleanedDocs, tabs, splitTabs, activeTabId, splitTabId: splitTabs.length > 0 ? splitTabId : null, isSplitViewOpen: splitTabs.length > 0, focusedTabId: activeTabId, isDocumentsLoaded: true });
         
       },
 
@@ -69,7 +93,7 @@ export const useAppStore = create<AppState>()(
         
         const id = `doc-${Date.now()}`;
         const newDoc: DocumentData = {
-          id, title: finalTitle, type, updatedAt: Date.now(),
+          id, title: finalTitle, type, updatedAt: Date.now(), isCloudLinked: false,
           data: type === 'whiteboard' ? { objectsById: {}, objectIds: [] } : { notebookContent: '<h1>New Note</h1>' }
         };
         

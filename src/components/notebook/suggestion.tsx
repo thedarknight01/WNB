@@ -6,63 +6,15 @@ import { getActiveStore, storeRegistry } from '../../core/store/useAppStore';
 import type { BoardObject } from '../../types/objects';
 import { getDocument, getDocuments } from '../../core/store/idb';
 
-const escapeXml = (value: string) => value.replace(/[<>&'"]/g, character => ({
-  '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;',
-}[character] || character));
 
-const objectSnapshot = (objects: BoardObject[]) => {
-  if (objects.length === 1 && objects[0].type === 'image' && typeof (objects[0] as any).src === 'string') return (objects[0] as any).src;
-  const minX = Math.min(...objects.map(object => object.x));
-  const minY = Math.min(...objects.map(object => object.y));
-  const maxX = Math.max(...objects.map(object => object.x + ((object as any).width || ((object as any).radius ? (object as any).radius * 2 : 120))));
-  const maxY = Math.max(...objects.map(object => object.y + ((object as any).height || ((object as any).radius ? (object as any).radius * 2 : 80))));
-  const width = Math.max(1, maxX - minX);
-  const height = Math.max(1, maxY - minY);
-  const shapes = objects.map(object => {
-    const x = object.x - minX;
-    const y = object.y - minY;
-    const objectWidth = Math.max(1, (object as any).width || ((object as any).radius ? (object as any).radius * 2 : 120));
-    const objectHeight = Math.max(1, (object as any).height || ((object as any).radius ? (object as any).radius * 2 : 80));
-    const fill = escapeXml(String((object as any).fill || '#e2e8f0'));
-    const stroke = escapeXml(String((object as any).stroke || '#334155'));
-    if (object.type === 'image' && typeof (object as any).src === 'string') {
-      return `<image href="${escapeXml((object as any).src)}" x="${x}" y="${y}" width="${objectWidth}" height="${objectHeight}" preserveAspectRatio="none"/>`;
-    }
-    if (object.type === 'circle') return `<ellipse cx="${x + objectWidth / 2}" cy="${y + objectHeight / 2}" rx="${objectWidth / 2}" ry="${objectHeight / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
-    if (object.type === 'text') return `<text x="${x + 8}" y="${y + Math.max(24, objectHeight / 2)}" fill="${stroke}" font-family="sans-serif" font-size="18">${escapeXml(String((object as any).text || ''))}</text>`;
-    if (object.type === 'line' || object.type === 'arrow') {
-      const points = (object as any).points || [0, objectHeight / 2, objectWidth, objectHeight / 2];
-      return `<polyline points="${points.map((point: number, index: number) => point + (index % 2 === 0 ? x : y)).join(' ')}" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round"/>`;
-    }
-    return `<rect x="${x}" y="${y}" width="${objectWidth}" height="${objectHeight}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
-  }).join('');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${shapes}</svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-};
+
+
 
 const labelContent = async (item: { id: string; label: string; docId: string }) => {
-  const sourceStore = storeRegistry.get(item.docId);
-  const persistedDocument = sourceStore ? null : await getDocument(item.docId);
-  const sourceObjects = sourceStore ? sourceStore.getState().objectIds
-    .map((id: string) => sourceStore.getState().objectsById[id])
-    .filter((object: BoardObject | undefined): object is BoardObject => Boolean(object))
-    : (persistedDocument?.data.objectIds || []).map(id => persistedDocument?.data.objectsById?.[id]).filter((object): object is BoardObject => Boolean(object));
-  const includedIds = new Set<string>([item.id]);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    sourceObjects.forEach((object: BoardObject) => {
-      if (object && object.parentId && includedIds.has(object.parentId) && !includedIds.has(object.id)) {
-        includedIds.add(object.id);
-        changed = true;
-      }
-    });
-  }
-  const groupObjects = sourceObjects.filter((object: BoardObject) => includedIds.has(object.id));
-  const snapshot = groupObjects.length > 0 ? objectSnapshot(groupObjects) : null;
-  const content: any[] = [{ type: 'labelMention', attrs: { id: item.id, label: item.label, docId: item.docId } }];
-  if (snapshot) content.push({ type: 'image', attrs: { src: snapshot, alt: `WBN_LABEL_REF:${item.docId}:${item.id}`, title: `Diagram: ${item.label}` } });
-  return content;
+  return [
+    { type: 'labelMention', attrs: { id: item.id, label: item.label, docId: item.docId } },
+    { type: 'diagramRef', attrs: { id: item.id, label: item.label, docId: item.docId } }
+  ];
 };
 
 const readLabelEntries = async (query: string) => {

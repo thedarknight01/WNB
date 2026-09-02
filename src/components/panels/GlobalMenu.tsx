@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSettingsStore } from '../../core/store/useSettingsStore';
 import { useAppStore, getActiveStore, storeRegistry } from '../../core/store/useAppStore';
-import { Settings, Columns, ChevronDown, FilePlus, Save, FolderOpen, Download, Sun, Moon, Globe2 } from 'lucide-react';
+import { Settings, Columns, ChevronDown, FilePlus, Save, FolderOpen, Download, Sun, Moon, Globe2, Cloud, CloudUpload, CloudOff, RefreshCw, CloudDownload } from 'lucide-react';
+import { CloudExplorerModal } from './CloudExplorerModal';
 import { encryptData, decryptData } from '../../utils/encryption';
 import { getDocument, saveDocument, type DocumentData } from '../../core/store/idb';
 import { createBoardStore, destroyBoardStore } from '../../core/store/useBoardStore';
@@ -22,14 +23,73 @@ export const GlobalMenu = () => {
   const [saveCandidates, setSaveCandidates] = useState<string[]>([]);
   const [saveIds, setSaveIds] = useState<string[]>([]);
   const fileMenuRef = useRef<HTMLDivElement>(null);
+  const cloudMenuRef = useRef<HTMLDivElement>(null);
+  const [cloudMenuOpen, setCloudMenuOpen] = useState(false);
+  const [explorerOpen, setExplorerOpen] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) setFileMenuOpen(false);
+      if (cloudMenuRef.current && !cloudMenuRef.current.contains(e.target as Node)) setCloudMenuOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  
+  const handleUploadToCloud = async () => {
+    if (!focusedDocument) return;
+    const { uploadDocumentToCloud } = await import('../../core/supabaseClient');
+    const store = storeRegistry.get(focusedDocument.id);
+    const persisted = await getDocument(focusedDocument.id);
+    const state = store?.getState();
+    const docData = {
+      ...focusedDocument,
+      data: state ? {
+        objectsById: state.objectsById,
+        objectIds: state.objectIds,
+        notebookContent: state.notebookContent,
+      } : persisted?.data || {},
+    };
+    const res = await uploadDocumentToCloud(docData);
+    if (res.success) {
+      useAppStore.getState().updateDocument(focusedDocument.id, { isCloudLinked: true, cloudUpdatedAt: Date.now() });
+      alert('Successfully uploaded to cloud!');
+    } else {
+      alert('Failed to upload: ' + (res.error || 'Check Supabase settings'));
+    }
+    setCloudMenuOpen(false);
+  };
+
+  const handleSyncFromCloud = async () => {
+    if (!focusedDocument) return;
+    const { syncDocumentFromCloud } = await import('../../core/supabaseClient');
+    const cloudDoc = await syncDocumentFromCloud(focusedDocument.id);
+    if (cloudDoc) {
+      await saveDocument(cloudDoc);
+      useAppStore.getState().updateDocument(focusedDocument.id, { isCloudLinked: true, cloudUpdatedAt: cloudDoc.updatedAt });
+      const store = storeRegistry.get(focusedDocument.id);
+      if (store) {
+        if (cloudDoc.type === 'whiteboard') {
+          store.setState({ objectsById: cloudDoc.data.objectsById, objectIds: cloudDoc.data.objectIds });
+        } else {
+          store.setState({ notebookContent: cloudDoc.data.notebookContent });
+        }
+      }
+      alert('Synced successfully from cloud.');
+    }
+    setCloudMenuOpen(false);
+  };
+
+  const handleRemoveFromCloud = async () => {
+    if (!focusedDocument) return;
+    if (confirm('Are you sure? This will delete the document from Supabase but keep it on your local device.')) {
+      const { deleteDocumentFromCloud } = await import('../../core/supabaseClient');
+      await deleteDocumentFromCloud(focusedDocument.id);
+      useAppStore.getState().updateDocument(focusedDocument.id, { isCloudLinked: false });
+    }
+    setCloudMenuOpen(false);
+  };
 
   const handleNew = (type: 'whiteboard' | 'notebook') => {
     const appStore = useAppStore.getState();
@@ -199,27 +259,59 @@ export const GlobalMenu = () => {
  <button onClick={() => handleNew('notebook')} style={menuItemStyle}><FilePlus size={14} /> New Notebook</button>
  <div style={{ height: '1px', background: isDark ? '#334155' : '#e2e8f0', margin: '4px 0' }} />
  <button onClick={handleSave} style={menuItemStyle}><Save size={14} /> Save</button>
- <button onClick={handleImport} style={menuItemStyle}><FolderOpen size={14} /> Open</button>
+ <button onClick={handleImport} style={menuItemStyle}><FolderOpen size={14} /> Open Local File</button>
+        <button onClick={() => { setExplorerOpen(true); setFileMenuOpen(false); }} style={menuItemStyle}><CloudDownload size={14} color="#3b82f6" /> Browse Cloud</button>
  <button onClick={handleExport} style={menuItemStyle}><Download size={14} /> Export Image</button>
  <button onClick={handlePdfExport} style={menuItemStyle}><Download size={14} /> Save as PDF</button>
  </div>
  )}
  </div>
- <button style={navStyle('Home')} onClick={() => setActiveMenuTab('Home')}>Home</button>
- <button style={navStyle('Insert')} onClick={() => setActiveMenuTab('Insert')}>Insert</button>
- <button
-   style={navStyle('Property')}
-   disabled={isNotebook}
-   title={isNotebook ? 'Properties are available for whiteboards only' : 'Object properties'}
-   onClick={() => { if (!isNotebook) setActiveMenuTab('Property'); }}
- >Property</button>
  
- <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto' }}>
- <button
- onClick={() => toggleSplitView()}
- title={isSplitViewOpen ? 'Close split view' : 'Enable split view'}
- style={{
- background: isSplitViewOpen ? 'linear-gradient(135deg, #3b82f6, #8b5cf6)' : 'transparent',
+  {/* CLOUD MENU */}
+  {focusedDocument && (
+    <div style={{ position: 'relative' }} ref={cloudMenuRef}>
+      <button 
+        style={{ ...navStyle('File'), background: cloudMenuOpen ? (isDark ? '#1e293b' : '#f1f5f9') : 'transparent' }} 
+        onClick={() => { setCloudMenuOpen(!cloudMenuOpen); setFileMenuOpen(false); }}
+      >
+        <Cloud size={14} color={focusedDocument.isCloudLinked ? "#10b981" : "currentColor"} />
+        <ChevronDown size={14} />
+      </button>
+      
+      {cloudMenuOpen && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, marginTop: '4px',
+          background: isDark ? '#1e293b' : '#ffffff',
+          border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
+          borderRadius: '6px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          zIndex: 2000, display: 'flex', flexDirection: 'column', minWidth: '160px', padding: '4px 0'
+        }}>
+          <button onClick={handleUploadToCloud} style={menuItemStyle}>
+            <CloudUpload size={14} /> {focusedDocument.isCloudLinked ? 'Push to Cloud' : 'Upload to Cloud'}
+          </button>
+          
+          {focusedDocument.isCloudLinked && (
+            <>
+              <button onClick={handleSyncFromCloud} style={menuItemStyle}>
+                <RefreshCw size={14} /> Sync from Cloud
+              </button>
+              <div style={{ height: '1px', background: isDark ? '#334155' : '#e2e8f0', margin: '4px 0' }} />
+              <button onClick={handleRemoveFromCloud} style={{ ...menuItemStyle, color: '#ef4444' }}>
+                <CloudOff size={14} /> Remove Link
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )}
+
+  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto' }}>
+    <button
+      onClick={() => toggleSplitView()}
+      title={isSplitViewOpen ? 'Close split view' : 'Enable split view'}
+      style={{
+        background: isSplitViewOpen ? 'linear-gradient(135deg, #3b82f6, #8b5cf6)' : 'transparent',
  border: isSplitViewOpen ? 'none' : (isDark ? '1px solid #334155' : '1px solid #e2e8f0'),
  color: isSplitViewOpen ? '#fff' : 'inherit',
  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px',
@@ -233,7 +325,7 @@ export const GlobalMenu = () => {
  <button onClick={() => useSettingsStore.getState().setTheme(isDark ? 'light' : 'dark')} title="Toggle theme" style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '6px', borderRadius: '50%', display: 'flex' }}>
    {isDark ? <Sun size={16} /> : <Moon size={16} />}
  </button>
- <button onClick={() => window.location.assign('/')} title="Open home page" style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '6px', borderRadius: '50%', display: 'flex' }}>
+ <button onClick={() => window.location.hash = '/'} title="Open home page" style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '6px', borderRadius: '50%', display: 'flex' }}>
    <Globe2 size={16} />
  </button>
  <button onClick={toggleSettings} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '4px' }}>
@@ -261,6 +353,7 @@ export const GlobalMenu = () => {
      </div>
    </div>
  )}
- </>
+ {explorerOpen && <CloudExplorerModal onClose={() => setExplorerOpen(false)} />}
+  </>
  );
 };
