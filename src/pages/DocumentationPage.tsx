@@ -1,4 +1,5 @@
 import { Shield, HardDrive, Cloud, Key, Zap } from 'lucide-react';
+import logoUrl from '/logo.png';
 
 export const DocumentationPage = () => {
   return (
@@ -7,7 +8,7 @@ export const DocumentationPage = () => {
       {/* Sidebar */}
       <aside style={{ width: '280px', background: '#ffffff', borderRight: '1px solid #e2e8f0', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <a href="#/" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: '12px', fontWeight: 800, fontSize: '1.25rem', marginBottom: '16px' }}>
-          <img src="/logo.png" alt="Logo" style={{ width: 28, height: 28, borderRadius: 6 }} />
+          <img src={logoUrl} alt="Logo" style={{ width: 28, height: 28, borderRadius: 6 }} />
           WBN Docs
         </a>
 

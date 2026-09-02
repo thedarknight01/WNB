@@ -6,6 +6,7 @@ import { CloudExplorerModal } from './CloudExplorerModal';
 import { encryptData, decryptData } from '../../utils/encryption';
 import { getDocument, saveDocument, type DocumentData } from '../../core/store/idb';
 import { createBoardStore, destroyBoardStore } from '../../core/store/useBoardStore';
+import logoUrl from '/logo.png';
 
 export const GlobalMenu = () => {
   const { theme, toggleSettings } = useSettingsStore();
@@ -238,7 +239,7 @@ export const GlobalMenu = () => {
       <div style={tabContainerStyle}>
         {/* LOGO */}
         <div style={{ display: 'flex', alignItems: 'center', marginRight: '8px' }}>
-         <img src="/logo.png" alt="Logo" style={{ width: 42, height: 42, borderRadius: 10 }} />
+         <img src={logoUrl} alt="Logo" style={{ width: 42, height: 42, borderRadius: 10 }} />
        </div>
 
  {/* FILE MENU */}

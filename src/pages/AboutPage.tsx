@@ -1,5 +1,6 @@
 import { useSettingsStore } from '../core/store/useSettingsStore';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
+import logoUrl from '/logo.png';
 
 export const AboutPage = () => {
   const { theme } = useSettingsStore();
@@ -33,7 +34,7 @@ export const AboutPage = () => {
         
         <div style={{ textAlign: 'center', marginBottom: '64px' }}>
           <img 
-            src="/logo.png" 
+            src={logoUrl} 
             alt="WBN Studio Logo" 
             style={{ width: 120, height: 120, borderRadius: 24, boxShadow: '0 20px 40px -10px rgba(59,130,246,0.3)', marginBottom: '32px' }} 
           />

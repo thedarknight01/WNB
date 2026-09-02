@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { Code, FileText, Shield, ArrowRight } from 'lucide-react';
+import logoUrl from '/logo.png';
 
 export const HomePage = () => {
   return (
@@ -8,7 +9,7 @@ export const HomePage = () => {
       {/* Header / Nav */}
       <nav style={{ padding: '24px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontWeight: 800, fontSize: '1.25rem' }}>
-          <img src="/logo.png" alt="WBN" style={{ width: 32, height: 32, borderRadius: 8 }} />
+          <img src={logoUrl} alt="WBN" style={{ width: 32, height: 32, borderRadius: 8 }} />
           WBN Studio
         </div>
         <div style={{ display: 'flex', gap: '24px', alignItems: 'center', fontWeight: 500, fontSize: '0.95rem' }}>
@@ -22,7 +23,7 @@ export const HomePage = () => {
       {/* Hero Section */}
       <section style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', textAlign: 'center' }}>
         <motion.img 
-          src="/logo.png" alt="WBN" 
+          src={logoUrl} alt="WBN" 
           initial={{ scale: 0.8, opacity: 0 }} 
           animate={{ scale: 1, opacity: 1 }} 
           style={{ width: 120, height: 120, borderRadius: 28, boxShadow: '0 20px 45px rgba(59,130,246,.25)' }} 
